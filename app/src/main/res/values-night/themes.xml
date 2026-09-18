@@ -1,7 +1,13 @@
-<resources xmlns:tools="http://schemas.android.com/tools">
-    <!-- Base application theme. -->
-    <style name="Base.Theme.SENECApp_Kotlin" parent="Theme.Material3.DayNight.NoActionBar">
-        <!-- Customize your dark theme here. -->
-        <!-- <item name="colorPrimary">@color/my_dark_primary</item> -->
+<resources>
+    <style name="Base.Theme.SENECApp_Kotlin" parent="Theme.Material3.Dark.NoActionBar">
+        <item name="android:fontFamily">@font/nunito</item>
+        <item name="fontFamily">@font/nunito</item>
+        <item name="android:windowLightStatusBar">false</item>
+        <item name="android:statusBarColor">@color/senec_background</item>
+        <item name="android:navigationBarColor">@color/senec_background</item>
+        <item name="colorPrimary">@color/senec_primary</item>
+        <item name="colorSecondary">@color/senec_accent</item>
+        <item name="colorSurface">@color/senec_card</item>
+        <item name="android:windowBackground">@color/senec_background</item>
     </style>
 </resources>
