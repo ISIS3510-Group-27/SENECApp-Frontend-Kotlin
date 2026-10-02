@@ -19,19 +19,14 @@ class MainActivity : ComponentActivity(), SensorEventListener {
     private val sensorManager by lazy { getSystemService(Context.SENSOR_SERVICE) as SensorManager }
     private val lightSensor by lazy { sensorManager.getDefaultSensor(Sensor.TYPE_LIGHT) }
     private val contrastPolicy = AdaptiveContrastPolicy()
-    private val ambientLux = mutableStateOf<Float?>(null)
-    private val sensorAvailable = mutableStateOf(false)
     private val highContrast = mutableStateOf(false)
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        sensorAvailable.value = lightSensor != null
 
         setContent {
             DiscoverScreen(
                 highContrast = highContrast.value,
-                ambientLux = ambientLux.value,
-                sensorAvailable = sensorAvailable.value,
                 organizationsState = organizationsViewModel.state,
                 onSearch = organizationsViewModel::search,
             )
@@ -40,12 +35,11 @@ class MainActivity : ComponentActivity(), SensorEventListener {
 
     override fun onResume() {
         super.onResume()
-        sensorAvailable.value = lightSensor?.let {
+        val registered = lightSensor?.let {
             sensorManager.registerListener(this, it, SensorManager.SENSOR_DELAY_NORMAL)
         } == true
-        if (!sensorAvailable.value) {
+        if (!registered) {
             contrastPolicy.reset()
-            ambientLux.value = null
             highContrast.value = false
         }
     }
@@ -60,7 +54,6 @@ class MainActivity : ComponentActivity(), SensorEventListener {
         val lux = event.values[0]
         if (!lux.isFinite() || lux < 0f) return
 
-        ambientLux.value = lux
         highContrast.value = contrastPolicy.update(lux)
     }
 
