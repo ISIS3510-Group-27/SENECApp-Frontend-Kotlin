@@ -26,6 +26,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -47,6 +48,8 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.senecapp.R
+import com.senecapp.data.Organization
+import kotlinx.coroutines.delay
 
 private data class DiscoverPalette(
     val background: Color,
@@ -90,18 +93,10 @@ private val brightLightPalette = DiscoverPalette(
 private val nunito = FontFamily(Font(R.font.nunito))
 private val bricolage = FontFamily(Font(R.font.bricolage_grotesque))
 
-private data class Organization(
-    val name: String,
-    val category: String,
-    val members: Int,
-    val image: Int,
-    val color: Color,
-)
-
-private val organizations = listOf(
-    Organization("Tennis Uniandes", "Sports", 142, R.drawable.tennis_uniandes, Color(0xFFA50104)),
-    Organization("Emprendedores Uniandes", "Business", 318, R.drawable.emprendedores_uniandes, Color(0xFFFF6B35)),
-    Organization("AI & Machine Learning", "Technology", 256, R.drawable.ai_machine_learning, Color(0xFF3B82F6)),
+private val previewOrganizations = listOf(
+    Organization(1, "Tennis Uniandes", "Sports", "sports", 142, "#A50104", true),
+    Organization(2, "Emprendedores Uniandes", "Business", "business", 318, "#FF6B35", true),
+    Organization(3, "AI & Machine Learning", "Technology", "technology", 256, "#3B82F6", true),
 )
 
 @Composable
@@ -109,14 +104,20 @@ fun DiscoverScreen(
     highContrast: Boolean = false,
     ambientLux: Float? = null,
     sensorAvailable: Boolean = true,
+    organizationsState: OrganizationsUiState = OrganizationsUiState(
+        loading = false,
+        items = previewOrganizations,
+        categories = previewOrganizations.map { it.categorySlug to it.category },
+    ),
+    onSearch: (String, String?) -> Unit = { _, _ -> },
 ) {
     val palette = if (highContrast) brightLightPalette else standardPalette
     var query by rememberSaveable { mutableStateOf("") }
-    var category by rememberSaveable { mutableStateOf("All") }
-    val visible = organizations.filter {
-        (category == "All" || it.category == category) &&
-            (query.isBlank() || it.name.contains(query, ignoreCase = true) ||
-                it.category.contains(query, ignoreCase = true))
+    var category by rememberSaveable { mutableStateOf<String?>(null) }
+
+    LaunchedEffect(query, category) {
+        delay(350)
+        onSearch(query, category)
     }
 
     Column(
@@ -127,14 +128,14 @@ fun DiscoverScreen(
             ContrastStatus(palette, ambientLux, sensorAvailable)
             SearchField(query = query, onQueryChange = { query = it }, palette = palette)
 
-            if (query.isBlank() && category == "All") {
+            if (query.isBlank() && category == null && organizationsState.items.isNotEmpty()) {
                 SectionLabel("FEATURED", palette, Modifier.padding(start = 24.dp, top = 20.dp, bottom = 8.dp))
                 Row(
                     modifier = Modifier.horizontalScroll(rememberScrollState()),
                     horizontalArrangement = Arrangement.spacedBy(12.dp),
                 ) {
                     Spacer(Modifier.width(12.dp))
-                    organizations.forEach { FeaturedCard(it, palette) }
+                    organizationsState.items.take(5).forEach { FeaturedCard(it, palette) }
                     Spacer(Modifier.width(12.dp))
                 }
             }
@@ -144,21 +145,32 @@ fun DiscoverScreen(
                     .padding(start = 24.dp, top = 20.dp, bottom = 18.dp),
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
             ) {
-                listOf("All", "Sports", "Business", "Technology").forEach { option ->
-                    CategoryChip(option, selected = option == category, palette = palette) { category = option }
+                (listOf(null to "All") + organizationsState.categories).forEach { (slug, label) ->
+                    CategoryChip(label, selected = slug == category, palette = palette) { category = slug }
                 }
                 Spacer(Modifier.width(16.dp))
             }
 
-            SectionLabel("${visible.size} ORGANIZATIONS", palette, Modifier.padding(start = 24.dp, bottom = 10.dp))
+            SectionLabel(
+                if (organizationsState.loading) "LOADING ORGANIZATIONS" else "${organizationsState.items.size} ORGANIZATIONS",
+                palette, Modifier.padding(start = 24.dp, bottom = 10.dp),
+            )
             Column(
                 modifier = Modifier.padding(start = 24.dp, end = 24.dp, bottom = 24.dp),
                 verticalArrangement = Arrangement.spacedBy(10.dp),
             ) {
-                if (visible.isEmpty()) {
+                if (organizationsState.loading) {
+                    Text("Loading organizations...", color = palette.muted, fontFamily = nunito, fontSize = 14.sp)
+                } else if (organizationsState.error != null) {
+                    Text(organizationsState.error, color = palette.foreground, fontFamily = nunito, fontSize = 14.sp)
+                    Text("Retry", color = palette.accent, fontFamily = nunito, fontSize = 14.sp,
+                        modifier = Modifier.clickable { onSearch(query, category) })
+                } else if (organizationsState.items.isEmpty()) {
                     Text("No organizations match your search.", color = palette.muted, fontFamily = nunito, fontSize = 14.sp)
                 }
-                visible.forEach { OrganizationCard(it, palette) }
+                if (!organizationsState.loading && organizationsState.error == null) {
+                    organizationsState.items.forEach { OrganizationCard(it, palette) }
+                }
             }
         }
         BottomNavigation(palette)
@@ -230,21 +242,17 @@ private fun SearchField(query: String, onQueryChange: (String) -> Unit, palette:
 
 @Composable
 private fun FeaturedCard(organization: Organization, palette: DiscoverPalette) {
+    val organizationColor = organization.displayColor()
     Box(
         modifier = Modifier.width(220.dp).height(145.dp).clip(RoundedCornerShape(20.dp)).background(palette.card),
     ) {
-        Image(
-            painter = painterResource(organization.image),
-            contentDescription = null,
-            modifier = Modifier.fillMaxSize(),
-            contentScale = ContentScale.Crop,
-        )
+        OrganizationArtwork(organization, Modifier.fillMaxSize())
         Box(
             Modifier.fillMaxSize().background(
                 Brush.verticalGradient(
                     listOf(
                         Color.Transparent,
-                        if (palette.highContrast) Color.Black else organization.color.copy(alpha = 0.9f),
+                        if (palette.highContrast) Color.Black else organizationColor.copy(alpha = 0.9f),
                     ),
                 ),
             ),
@@ -274,17 +282,13 @@ private fun CategoryChip(label: String, selected: Boolean, palette: DiscoverPale
 
 @Composable
 private fun OrganizationCard(organization: Organization, palette: DiscoverPalette) {
+    val organizationColor = organization.displayColor()
     Row(
         modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(palette.card)
             .border(1.dp, palette.border, RoundedCornerShape(16.dp)).padding(14.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Image(
-            painter = painterResource(organization.image),
-            contentDescription = null,
-            modifier = Modifier.size(62.dp).clip(RoundedCornerShape(14.dp)),
-            contentScale = ContentScale.Crop,
-        )
+        OrganizationArtwork(organization, Modifier.size(62.dp).clip(RoundedCornerShape(14.dp)))
         Column(Modifier.weight(1f).padding(start = 14.dp)) {
             Text(
                 organization.name, color = palette.foreground, fontFamily = bricolage, fontSize = 15.sp,
@@ -293,13 +297,35 @@ private fun OrganizationCard(organization: Organization, palette: DiscoverPalett
             Text("${organization.members} members · ${organization.category}", color = palette.muted, fontFamily = nunito, fontSize = 12.sp)
             Spacer(Modifier.height(5.dp))
             Text(
-                "Upcoming events", color = if (palette.highContrast) palette.accent else organization.color,
+                if (organization.hasUpcomingEvent) "Upcoming events" else "No upcoming events",
+                color = if (palette.highContrast) palette.accent else organizationColor,
                 fontFamily = nunito, fontSize = 10.sp,
                 fontWeight = FontWeight.Bold,
                 modifier = Modifier.clip(RoundedCornerShape(8.dp))
-                    .background(if (palette.highContrast) palette.secondary else organization.color.copy(alpha = 0.12f))
+                    .background(if (palette.highContrast) palette.secondary else organizationColor.copy(alpha = 0.12f))
                     .padding(horizontal = 7.dp, vertical = 3.dp),
             )
+        }
+    }
+}
+
+private fun Organization.displayColor(): Color =
+    runCatching { Color(android.graphics.Color.parseColor(color ?: "")) }.getOrDefault(Color(0xFF3B82F6))
+
+@Composable
+private fun OrganizationArtwork(organization: Organization, modifier: Modifier) {
+    val image = when (organization.name) {
+        "Tennis Uniandes" -> R.drawable.tennis_uniandes
+        "Emprendedores Uniandes" -> R.drawable.emprendedores_uniandes
+        "AI & Machine Learning" -> R.drawable.ai_machine_learning
+        else -> null
+    }
+    if (image != null) {
+        Image(painterResource(image), contentDescription = null, modifier = modifier, contentScale = ContentScale.Crop)
+    } else {
+        Box(modifier.background(organization.displayColor()), contentAlignment = Alignment.Center) {
+            Text(organization.name.take(1).uppercase(), color = Color.White, fontFamily = bricolage,
+                fontSize = 24.sp, fontWeight = FontWeight.Bold)
         }
     }
 }

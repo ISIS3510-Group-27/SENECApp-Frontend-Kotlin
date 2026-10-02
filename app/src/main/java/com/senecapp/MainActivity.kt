@@ -9,10 +9,13 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.runtime.mutableStateOf
+import androidx.lifecycle.ViewModelProvider
 import com.senecapp.sensors.AdaptiveContrastPolicy
 import com.senecapp.ui.DiscoverScreen
+import com.senecapp.ui.OrganizationsViewModel
 
 class MainActivity : ComponentActivity(), SensorEventListener {
+    private val organizationsViewModel by lazy { ViewModelProvider(this)[OrganizationsViewModel::class.java] }
     private val sensorManager by lazy { getSystemService(Context.SENSOR_SERVICE) as SensorManager }
     private val lightSensor by lazy { sensorManager.getDefaultSensor(Sensor.TYPE_LIGHT) }
     private val contrastPolicy = AdaptiveContrastPolicy()
@@ -29,6 +32,8 @@ class MainActivity : ComponentActivity(), SensorEventListener {
                 highContrast = highContrast.value,
                 ambientLux = ambientLux.value,
                 sensorAvailable = sensorAvailable.value,
+                organizationsState = organizationsViewModel.state,
+                onSearch = organizationsViewModel::search,
             )
         }
     }
