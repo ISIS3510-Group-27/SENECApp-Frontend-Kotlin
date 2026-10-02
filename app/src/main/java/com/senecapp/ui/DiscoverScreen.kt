@@ -101,6 +101,7 @@ private val previewOrganizations = listOf(
 
 @Composable
 fun DiscoverScreen(
+    showBottomNavigation: Boolean = true,
     highContrast: Boolean = false,
     ambientLux: Float? = null,
     sensorAvailable: Boolean = true,
@@ -173,7 +174,7 @@ fun DiscoverScreen(
                 }
             }
         }
-        BottomNavigation(palette)
+        if (showBottomNavigation) BottomNavigation(palette)
     }
 }
 
@@ -336,19 +337,19 @@ private fun SectionLabel(label: String, palette: DiscoverPalette, modifier: Modi
 }
 
 @Composable
-private fun BottomNavigation(palette: DiscoverPalette) {
+private fun BottomNavigation(palette: DiscoverPalette, selectedTab: String = "Discover", onNavigate: (String) -> Unit = {}) {
     Row(
         modifier = Modifier.fillMaxWidth().height(76.dp).background(palette.background),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         listOf(
-            Triple(R.drawable.ic_home, "Discover", true),
-            Triple(R.drawable.ic_event, "Events", false),
+            Triple(R.drawable.ic_home, "Discover", selectedTab == "Discover"),
+            Triple(R.drawable.ic_event, "Events", selectedTab == "Events"),
             Triple(R.drawable.ic_group, "My RSOs", false),
-            Triple(R.drawable.ic_person, "Profile", false),
+            Triple(R.drawable.ic_person, "Profile", selectedTab == "Profile"),
         ).forEach { (icon, label, selected) ->
             Column(
-                modifier = Modifier.weight(1f),
+                modifier = Modifier.weight(1f).clickable(enabled = label != "My RSOs") { onNavigate(label) },
                 horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.spacedBy(4.dp),
             ) {
@@ -358,6 +359,11 @@ private fun BottomNavigation(palette: DiscoverPalette) {
             }
         }
     }
+}
+
+@Composable
+fun AppBottomNavigation(selectedTab: String, highContrast: Boolean, onNavigate: (String) -> Unit) {
+    BottomNavigation(if (highContrast) brightLightPalette else standardPalette, selectedTab, onNavigate)
 }
 
 @Preview(showBackground = true, widthDp = 393, heightDp = 852)

@@ -8,6 +8,20 @@ import android.hardware.SensorManager
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.activity.compose.BackHandler
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.navigationBars
+import androidx.compose.foundation.layout.windowInsetsPadding
+import androidx.compose.ui.Modifier
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.saveable.rememberSaveable
+import com.senecapp.ui.EventsScreen
+import com.senecapp.ui.ProfileScreen
+import com.senecapp.ui.AppBottomNavigation
 import androidx.compose.runtime.mutableStateOf
 import androidx.lifecycle.ViewModelProvider
 import com.senecapp.sensors.AdaptiveContrastPolicy
@@ -28,13 +42,25 @@ class MainActivity : ComponentActivity(), SensorEventListener {
         sensorAvailable.value = lightSensor != null
 
         setContent {
-            DiscoverScreen(
-                highContrast = highContrast.value,
-                ambientLux = ambientLux.value,
-                sensorAvailable = sensorAvailable.value,
-                organizationsState = organizationsViewModel.state,
-                onSearch = organizationsViewModel::search,
-            )
+            var selectedTab by rememberSaveable { mutableStateOf("Discover") }
+            BackHandler(enabled = selectedTab != "Discover") { selectedTab = "Discover" }
+            Column(Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.navigationBars)) {
+                Box(Modifier.weight(1f)) {
+                    when (selectedTab) {
+                        "Events" -> EventsScreen()
+                        "Profile" -> ProfileScreen()
+                        else -> DiscoverScreen(
+                            showBottomNavigation = false,
+                            highContrast = highContrast.value,
+                            ambientLux = ambientLux.value,
+                            sensorAvailable = sensorAvailable.value,
+                            organizationsState = organizationsViewModel.state,
+                            onSearch = organizationsViewModel::search,
+                        )
+                    }
+                }
+                AppBottomNavigation(selectedTab, highContrast.value) { selectedTab = it }
+            }
         }
     }
 
