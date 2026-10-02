@@ -1,9 +1,9 @@
 <resources>
     <style name="Theme.SENEC" parent="android:style/Theme.Material.Light.NoActionBar">
-        <item name="android:windowBackground">#FFFBFD</item>
-        <item name="android:statusBarColor">#FFFBFD</item>
-        <item name="android:navigationBarColor">#FFFBFD</item>
-        <item name="android:windowLightStatusBar">true</item>
-        <item name="android:windowLightNavigationBar">true</item>
+        <item name="android:windowBackground">#171A21</item>
+        <item name="android:statusBarColor">#171A21</item>
+        <item name="android:navigationBarColor">#171A21</item>
+        <item name="android:windowLightStatusBar">false</item>
+        <item name="android:windowLightNavigationBar">false</item>
     </style>
 </resources>

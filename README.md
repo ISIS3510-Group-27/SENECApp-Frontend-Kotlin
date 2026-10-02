@@ -10,4 +10,4 @@ Abre el proyecto en Android Studio y ejecuta el módulo `app`, o compila desde l
 ./gradlew assembleDebug
 ```
 
-La pantalla inicial es provisional y reproduce únicamente el estado vacío de la referencia. Las vistas de producto se añadirán en las próximas iteraciones.
+La primera vista, **Discover**, usa datos locales de muestra. Las demás vistas y la conexión al backend se añadirán en próximas iteraciones.
