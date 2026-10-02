@@ -1,0 +1,9 @@
+<resources>
+    <style name="Theme.SENEC" parent="android:style/Theme.Material.Light.NoActionBar">
+        <item name="android:windowBackground">#FFFBFD</item>
+        <item name="android:statusBarColor">#FFFBFD</item>
+        <item name="android:navigationBarColor">#FFFBFD</item>
+        <item name="android:windowLightStatusBar">true</item>
+        <item name="android:windowLightNavigationBar">true</item>
+    </style>
+</resources>
