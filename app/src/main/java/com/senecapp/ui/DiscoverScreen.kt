@@ -43,17 +43,50 @@ import androidx.compose.ui.text.font.Font
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.senecapp.R
 
-private val background = Color(0xFF171A21)
-private val foreground = Color(0xFFF0E2E7)
-private val primary = Color(0xFFA50104)
-private val accent = Color(0xFFFFBA08)
-private val secondary = Color(0xFF1D3557)
-private val card = Color(0xFF1E2633)
-private val muted = Color(0xFF8B94B0)
+private data class DiscoverPalette(
+    val background: Color,
+    val foreground: Color,
+    val primary: Color,
+    val accent: Color,
+    val secondary: Color,
+    val card: Color,
+    val muted: Color,
+    val selectedText: Color,
+    val border: Color,
+    val highContrast: Boolean,
+)
+
+private val standardPalette = DiscoverPalette(
+    background = Color(0xFF171A21),
+    foreground = Color(0xFFF0E2E7),
+    primary = Color(0xFFA50104),
+    accent = Color(0xFFFFBA08),
+    secondary = Color(0xFF1D3557),
+    card = Color(0xFF1E2633),
+    muted = Color(0xFF8B94B0),
+    selectedText = Color.White,
+    border = Color.White.copy(alpha = 0.06f),
+    highContrast = false,
+)
+
+private val brightLightPalette = DiscoverPalette(
+    background = Color.Black,
+    foreground = Color.White,
+    primary = Color(0xFFFFD54F),
+    accent = Color(0xFFFFD54F),
+    secondary = Color(0xFF243550),
+    card = Color(0xFF101A2A),
+    muted = Color(0xFFE3E7F2),
+    selectedText = Color.Black,
+    border = Color.White.copy(alpha = 0.55f),
+    highContrast = true,
+)
+
 private val nunito = FontFamily(Font(R.font.nunito))
 private val bricolage = FontFamily(Font(R.font.bricolage_grotesque))
 
@@ -66,13 +99,18 @@ private data class Organization(
 )
 
 private val organizations = listOf(
-    Organization("Tennis Uniandes", "Sports", 142, R.drawable.tennis_uniandes, primary),
+    Organization("Tennis Uniandes", "Sports", 142, R.drawable.tennis_uniandes, Color(0xFFA50104)),
     Organization("Emprendedores Uniandes", "Business", 318, R.drawable.emprendedores_uniandes, Color(0xFFFF6B35)),
     Organization("AI & Machine Learning", "Technology", 256, R.drawable.ai_machine_learning, Color(0xFF3B82F6)),
 )
 
 @Composable
-fun DiscoverScreen() {
+fun DiscoverScreen(
+    highContrast: Boolean = false,
+    ambientLux: Float? = null,
+    sensorAvailable: Boolean = true,
+) {
+    val palette = if (highContrast) brightLightPalette else standardPalette
     var query by rememberSaveable { mutableStateOf("") }
     var category by rememberSaveable { mutableStateOf("All") }
     val visible = organizations.filter {
@@ -82,20 +120,21 @@ fun DiscoverScreen() {
     }
 
     Column(
-        modifier = Modifier.fillMaxSize().background(background).windowInsetsPadding(WindowInsets.safeDrawing),
+        modifier = Modifier.fillMaxSize().background(palette.background).windowInsetsPadding(WindowInsets.safeDrawing),
     ) {
         Column(modifier = Modifier.weight(1f).verticalScroll(rememberScrollState())) {
-            Header()
-            SearchField(query = query, onQueryChange = { query = it })
+            Header(palette)
+            ContrastStatus(palette, ambientLux, sensorAvailable)
+            SearchField(query = query, onQueryChange = { query = it }, palette = palette)
 
             if (query.isBlank() && category == "All") {
-                SectionLabel("FEATURED", Modifier.padding(start = 24.dp, top = 20.dp, bottom = 8.dp))
+                SectionLabel("FEATURED", palette, Modifier.padding(start = 24.dp, top = 20.dp, bottom = 8.dp))
                 Row(
                     modifier = Modifier.horizontalScroll(rememberScrollState()),
                     horizontalArrangement = Arrangement.spacedBy(12.dp),
                 ) {
                     Spacer(Modifier.width(12.dp))
-                    organizations.forEach { FeaturedCard(it) }
+                    organizations.forEach { FeaturedCard(it, palette) }
                     Spacer(Modifier.width(12.dp))
                 }
             }
@@ -106,28 +145,28 @@ fun DiscoverScreen() {
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
             ) {
                 listOf("All", "Sports", "Business", "Technology").forEach { option ->
-                    CategoryChip(option, selected = option == category) { category = option }
+                    CategoryChip(option, selected = option == category, palette = palette) { category = option }
                 }
                 Spacer(Modifier.width(16.dp))
             }
 
-            SectionLabel("${visible.size} ORGANIZATIONS", Modifier.padding(start = 24.dp, bottom = 10.dp))
+            SectionLabel("${visible.size} ORGANIZATIONS", palette, Modifier.padding(start = 24.dp, bottom = 10.dp))
             Column(
                 modifier = Modifier.padding(start = 24.dp, end = 24.dp, bottom = 24.dp),
                 verticalArrangement = Arrangement.spacedBy(10.dp),
             ) {
                 if (visible.isEmpty()) {
-                    Text("No organizations match your search.", color = muted, fontFamily = nunito, fontSize = 14.sp)
+                    Text("No organizations match your search.", color = palette.muted, fontFamily = nunito, fontSize = 14.sp)
                 }
-                visible.forEach { OrganizationCard(it) }
+                visible.forEach { OrganizationCard(it, palette) }
             }
         }
-        BottomNavigation()
+        BottomNavigation(palette)
     }
 }
 
 @Composable
-private fun Header() {
+private fun Header(palette: DiscoverPalette) {
     Row(
         modifier = Modifier.fillMaxWidth().padding(start = 24.dp, end = 24.dp, top = 12.dp, bottom = 18.dp),
         verticalAlignment = Alignment.CenterVertically,
@@ -139,34 +178,49 @@ private fun Header() {
             contentScale = ContentScale.Crop,
         )
         Column(Modifier.weight(1f).padding(start = 12.dp)) {
-            Text("UNIANDES - BOGOTA", color = muted, fontFamily = nunito, fontSize = 11.sp, fontWeight = FontWeight.Bold)
-            Text("SENECApp", color = foreground, fontFamily = bricolage, fontSize = 25.sp, fontWeight = FontWeight.Bold)
+            Text("UNIANDES - BOGOTA", color = palette.muted, fontFamily = nunito, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+            Text("SENECApp", color = palette.foreground, fontFamily = bricolage, fontSize = 25.sp, fontWeight = FontWeight.Bold)
         }
         Box(
-            modifier = Modifier.size(42.dp).clip(RoundedCornerShape(13.dp)).background(secondary),
+            modifier = Modifier.size(42.dp).clip(RoundedCornerShape(13.dp)).background(palette.secondary),
             contentAlignment = Alignment.Center,
         ) {
-            Icon(painterResource(R.drawable.ic_notifications), contentDescription = "Notifications", tint = foreground, modifier = Modifier.size(22.dp))
+            Icon(painterResource(R.drawable.ic_notifications), contentDescription = "Notifications", tint = palette.foreground, modifier = Modifier.size(22.dp))
         }
     }
 }
 
 @Composable
-private fun SearchField(query: String, onQueryChange: (String) -> Unit) {
+private fun ContrastStatus(palette: DiscoverPalette, ambientLux: Float?, sensorAvailable: Boolean) {
+    val label = when {
+        !sensorAvailable -> "Automatic contrast unavailable on this device"
+        ambientLux == null -> "Reading ambient light..."
+        palette.highContrast -> "Ambient light ${ambientLux.toInt()} lx · High contrast"
+        else -> "Ambient light ${ambientLux.toInt()} lx · Standard contrast"
+    }
+    Text(
+        label, color = if (palette.highContrast) palette.accent else palette.muted,
+        fontFamily = nunito, fontSize = 11.sp, fontWeight = FontWeight.Bold,
+        modifier = Modifier.padding(start = 24.dp, end = 24.dp, bottom = 12.dp),
+    )
+}
+
+@Composable
+private fun SearchField(query: String, onQueryChange: (String) -> Unit, palette: DiscoverPalette) {
     BasicTextField(
         value = query,
         onValueChange = onQueryChange,
         singleLine = true,
-        textStyle = TextStyle(color = foreground, fontFamily = nunito, fontSize = 14.sp),
-        cursorBrush = SolidColor(accent),
+        textStyle = TextStyle(color = palette.foreground, fontFamily = nunito, fontSize = 14.sp),
+        cursorBrush = SolidColor(palette.accent),
         modifier = Modifier.fillMaxWidth().padding(horizontal = 24.dp).height(50.dp)
-            .clip(RoundedCornerShape(16.dp)).background(secondary).padding(horizontal = 16.dp),
+            .clip(RoundedCornerShape(16.dp)).background(palette.secondary).padding(horizontal = 16.dp),
         decorationBox = { innerTextField ->
             Row(modifier = Modifier.fillMaxSize(), verticalAlignment = Alignment.CenterVertically) {
-                Icon(painterResource(R.drawable.ic_search), contentDescription = null, tint = muted, modifier = Modifier.size(20.dp))
+                Icon(painterResource(R.drawable.ic_search), contentDescription = null, tint = palette.muted, modifier = Modifier.size(20.dp))
                 Spacer(Modifier.width(10.dp))
                 Box {
-                    if (query.isEmpty()) Text("Search organizations...", color = muted, fontFamily = nunito, fontSize = 14.sp)
+                    if (query.isEmpty()) Text("Search organizations...", color = palette.muted, fontFamily = nunito, fontSize = 14.sp)
                     innerTextField()
                 }
             }
@@ -175,9 +229,9 @@ private fun SearchField(query: String, onQueryChange: (String) -> Unit) {
 }
 
 @Composable
-private fun FeaturedCard(organization: Organization) {
+private fun FeaturedCard(organization: Organization, palette: DiscoverPalette) {
     Box(
-        modifier = Modifier.width(220.dp).height(145.dp).clip(RoundedCornerShape(20.dp)).background(card),
+        modifier = Modifier.width(220.dp).height(145.dp).clip(RoundedCornerShape(20.dp)).background(palette.card),
     ) {
         Image(
             painter = painterResource(organization.image),
@@ -187,11 +241,16 @@ private fun FeaturedCard(organization: Organization) {
         )
         Box(
             Modifier.fillMaxSize().background(
-                Brush.verticalGradient(listOf(Color.Transparent, organization.color.copy(alpha = 0.9f))),
+                Brush.verticalGradient(
+                    listOf(
+                        Color.Transparent,
+                        if (palette.highContrast) Color.Black else organization.color.copy(alpha = 0.9f),
+                    ),
+                ),
             ),
         )
         Column(Modifier.align(Alignment.BottomStart).padding(14.dp)) {
-            Text(organization.category.uppercase(), color = accent, fontFamily = nunito, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+            Text(organization.category.uppercase(), color = palette.accent, fontFamily = nunito, fontSize = 10.sp, fontWeight = FontWeight.Bold)
             Text(
                 organization.name, color = Color.White, fontFamily = bricolage, fontSize = 16.sp,
                 fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis,
@@ -202,22 +261,22 @@ private fun FeaturedCard(organization: Organization) {
 }
 
 @Composable
-private fun CategoryChip(label: String, selected: Boolean, onClick: () -> Unit) {
+private fun CategoryChip(label: String, selected: Boolean, palette: DiscoverPalette, onClick: () -> Unit) {
     Box(
         modifier = Modifier.height(38.dp).clip(RoundedCornerShape(11.dp))
-            .background(if (selected) primary else secondary).clickable(onClick = onClick)
+            .background(if (selected) palette.primary else palette.secondary).clickable(onClick = onClick)
             .padding(horizontal = 14.dp),
         contentAlignment = Alignment.Center,
     ) {
-        Text(label, color = if (selected) Color.White else muted, fontFamily = nunito, fontSize = 12.sp)
+        Text(label, color = if (selected) palette.selectedText else palette.muted, fontFamily = nunito, fontSize = 12.sp)
     }
 }
 
 @Composable
-private fun OrganizationCard(organization: Organization) {
+private fun OrganizationCard(organization: Organization, palette: DiscoverPalette) {
     Row(
-        modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(card)
-            .border(1.dp, Color.White.copy(alpha = 0.06f), RoundedCornerShape(16.dp)).padding(14.dp),
+        modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(palette.card)
+            .border(1.dp, palette.border, RoundedCornerShape(16.dp)).padding(14.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Image(
@@ -228,16 +287,17 @@ private fun OrganizationCard(organization: Organization) {
         )
         Column(Modifier.weight(1f).padding(start = 14.dp)) {
             Text(
-                organization.name, color = foreground, fontFamily = bricolage, fontSize = 15.sp,
+                organization.name, color = palette.foreground, fontFamily = bricolage, fontSize = 15.sp,
                 fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis,
             )
-            Text("${organization.members} members · ${organization.category}", color = muted, fontFamily = nunito, fontSize = 12.sp)
+            Text("${organization.members} members · ${organization.category}", color = palette.muted, fontFamily = nunito, fontSize = 12.sp)
             Spacer(Modifier.height(5.dp))
             Text(
-                "Upcoming events", color = organization.color, fontFamily = nunito, fontSize = 10.sp,
+                "Upcoming events", color = if (palette.highContrast) palette.accent else organization.color,
+                fontFamily = nunito, fontSize = 10.sp,
                 fontWeight = FontWeight.Bold,
                 modifier = Modifier.clip(RoundedCornerShape(8.dp))
-                    .background(organization.color.copy(alpha = 0.12f))
+                    .background(if (palette.highContrast) palette.secondary else organization.color.copy(alpha = 0.12f))
                     .padding(horizontal = 7.dp, vertical = 3.dp),
             )
         }
@@ -245,14 +305,14 @@ private fun OrganizationCard(organization: Organization) {
 }
 
 @Composable
-private fun SectionLabel(label: String, modifier: Modifier = Modifier) {
-    Text(label, color = muted, fontFamily = nunito, fontSize = 11.sp, fontWeight = FontWeight.Bold, modifier = modifier)
+private fun SectionLabel(label: String, palette: DiscoverPalette, modifier: Modifier = Modifier) {
+    Text(label, color = palette.muted, fontFamily = nunito, fontSize = 11.sp, fontWeight = FontWeight.Bold, modifier = modifier)
 }
 
 @Composable
-private fun BottomNavigation() {
+private fun BottomNavigation(palette: DiscoverPalette) {
     Row(
-        modifier = Modifier.fillMaxWidth().height(76.dp).background(background),
+        modifier = Modifier.fillMaxWidth().height(76.dp).background(palette.background),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         listOf(
@@ -266,10 +326,22 @@ private fun BottomNavigation() {
                 horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.spacedBy(4.dp),
             ) {
-                Icon(painterResource(icon), contentDescription = null, tint = if (selected) primary else muted, modifier = Modifier.size(24.dp))
-                Box(Modifier.size(4.dp).clip(RoundedCornerShape(2.dp)).background(if (selected) primary else Color.Transparent))
-                Text(label, color = if (selected) primary else muted, fontFamily = nunito, fontSize = 10.sp)
+                Icon(painterResource(icon), contentDescription = null, tint = if (selected) palette.primary else palette.muted, modifier = Modifier.size(24.dp))
+                Box(Modifier.size(4.dp).clip(RoundedCornerShape(2.dp)).background(if (selected) palette.primary else Color.Transparent))
+                Text(label, color = if (selected) palette.primary else palette.muted, fontFamily = nunito, fontSize = 10.sp)
             }
         }
     }
+}
+
+@Preview(showBackground = true, widthDp = 393, heightDp = 852)
+@Composable
+private fun DiscoverStandardPreview() {
+    DiscoverScreen(ambientLux = 100f)
+}
+
+@Preview(showBackground = true, widthDp = 393, heightDp = 852)
+@Composable
+private fun DiscoverHighContrastPreview() {
+    DiscoverScreen(highContrast = true, ambientLux = 750f)
 }
