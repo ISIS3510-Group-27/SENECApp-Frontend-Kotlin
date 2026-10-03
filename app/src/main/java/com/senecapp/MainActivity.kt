@@ -20,6 +20,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.saveable.rememberSaveable
 import com.senecapp.ui.EventsScreen
+import com.senecapp.ui.FreeNowViewModel
 import com.senecapp.ui.ProfileScreen
 import com.senecapp.ui.AppBottomNavigation
 import androidx.compose.runtime.mutableStateOf
@@ -30,6 +31,7 @@ import com.senecapp.ui.OrganizationsViewModel
 
 class MainActivity : ComponentActivity(), SensorEventListener {
     private val organizationsViewModel by lazy { ViewModelProvider(this)[OrganizationsViewModel::class.java] }
+    private val freeNowViewModel by lazy { ViewModelProvider(this)[FreeNowViewModel::class.java] }
     private val sensorManager by lazy { getSystemService(Context.SENSOR_SERVICE) as SensorManager }
     private val lightSensor by lazy { sensorManager.getDefaultSensor(Sensor.TYPE_LIGHT) }
     private val contrastPolicy = AdaptiveContrastPolicy()
@@ -44,7 +46,12 @@ class MainActivity : ComponentActivity(), SensorEventListener {
             Column(Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.navigationBars)) {
                 Box(Modifier.weight(1f)) {
                     when (selectedTab) {
-                        "Events" -> EventsScreen()
+                        "Events" -> EventsScreen(
+                            freeNowState = freeNowViewModel.state,
+                            onLoadFreeNow = freeNowViewModel::load,
+                            onDemoNoon = freeNowViewModel::loadDemoNoon,
+                            onOpenSuggestedEvent = freeNowViewModel::openEvent,
+                        )
                         "Profile" -> ProfileScreen()
                         else -> DiscoverScreen(
                             showBottomNavigation = false,

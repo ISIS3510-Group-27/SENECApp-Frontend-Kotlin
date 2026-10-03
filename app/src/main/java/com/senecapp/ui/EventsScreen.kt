@@ -28,9 +28,16 @@ private val sampleEvents = listOf(
 )
 
 @Composable
-fun EventsScreen() {
+fun EventsScreen(
+    freeNowState: FreeNowUiState = FreeNowUiState(),
+    onLoadFreeNow: () -> Unit = {},
+    onDemoNoon: () -> Unit = {},
+    onOpenSuggestedEvent: (Int) -> Unit = {},
+) {
     var onlyJoined by rememberSaveable { mutableStateOf(false) }
-    DemoView("SENECApp Events") {
+    LaunchedEffect(Unit) { onLoadFreeNow() }
+    DemoView("SENECApp Events", showSampleLabel = false) {
+        FreeNowSection(freeNowState, onLoadFreeNow, onDemoNoon, onOpenSuggestedEvent)
         Column(Modifier.fillMaxWidth().background(
             Brush.horizontalGradient(listOf(viewPrimary, Color(0xFFFF6B35))), RoundedCornerShape(20.dp)
         ).padding(18.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {

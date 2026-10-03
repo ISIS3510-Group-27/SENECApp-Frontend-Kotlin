@@ -34,13 +34,19 @@ internal fun ViewText(text: String, heading: Boolean = false, color: Color = vie
 }
 
 @Composable
-internal fun DemoView(title: String, content: @Composable ColumnScope.() -> Unit) {
+internal fun DemoView(
+    title: String,
+    showSampleLabel: Boolean = true,
+    content: @Composable ColumnScope.() -> Unit,
+) {
     Column(Modifier.fillMaxSize().background(viewBackground)
         .windowInsetsPadding(WindowInsets.safeDrawing).verticalScroll(rememberScrollState())
         .padding(24.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
         ViewText("SENECAPP · UNIANDES", color = viewMuted)
         ViewText(title, heading = true)
-        Text("DEMO · Sample data only", color = viewAccent, fontFamily = viewNunito, fontSize = 12.sp)
+        if (showSampleLabel) {
+            Text("DEMO · Sample data only", color = viewAccent, fontFamily = viewNunito, fontSize = 12.sp)
+        }
         content()
     }
 }
