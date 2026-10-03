@@ -8,13 +8,18 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.senecapp.data.CampusEvent
+import com.senecapp.data.EventCoordinates
 import java.text.SimpleDateFormat
 import java.util.Locale
 import java.util.TimeZone
 
 @Composable
 internal fun CampusEventsSection(state: CampusEventsUiState, onLoad: (Boolean) -> Unit,
-    onOpen: (CampusEvent) -> Unit, onClose: () -> Unit) {
+                                 onOpen: (CampusEvent) -> Unit, onClose: () -> Unit,
+                                 checkInState: CheckInUiState = CheckInUiState(),
+                                 onStartScan: (Int) -> Unit = {}, onScanFailed: (Int, String) -> Unit = { _, _ -> },
+                                 onScanCancelled: (Int) -> Unit = {},
+                                 onCheckIn: (Int, String, EventCoordinates?, String?) -> Unit = { _, _, _, _ -> }) {
     var mine by rememberSaveable { mutableStateOf(false) }
     LaunchedEffect(mine) { onLoad(mine) }
     ViewText("UPCOMING EVENTS", color = viewMuted)
@@ -63,6 +68,8 @@ internal fun CampusEventsSection(state: CampusEventsUiState, onLoad: (Boolean) -
                         ViewText(it)
                         TextButton(onClick = { onOpen(event) }) { Text("Retry", color = viewAccent) }
                     }
+                    EventCheckInSection(event, checkInState, onStartScan, onScanFailed,
+                        onScanCancelled, onCheckIn)
                 }
             }, confirmButton = { TextButton(onClick = onClose) { Text("Close", color = viewAccent) } })
     }

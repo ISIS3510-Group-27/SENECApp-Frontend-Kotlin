@@ -3,8 +3,9 @@ plugins {
     id("org.jetbrains.kotlin.plugin.compose")
 }
 
-// The Firebase console's Android client file is supplied locally by the team.
-// Without it the app shows the Firebase setup state and blocks protected content.
+// The Google Services plugin fails the build when google-services.json is missing, and that file
+// comes from a Firebase project the team has not created yet. Applying it only when the file is
+// there keeps everyone compiling today and turns Firebase on by itself the day it lands.
 if (file("google-services.json").exists()) {
     apply(plugin = "com.google.gms.google-services")
 }
@@ -31,9 +32,17 @@ android {
             val apiBaseUrl = providers.gradleProperty("apiBaseUrl")
                 .getOrElse("http://10.0.2.2:8000/api/v1")
             buildConfigField("String", "API_BASE_URL", "\"$apiBaseUrl\"")
+            buildConfigField("String", "DEV_TOKEN", "\"dev:s.arango@uniandes.edu.co\"")
+            // Which TokenProvider strategy to install: "dev" or "firebase". Mirrors the backend's
+            // own AUTH_PROVIDER setting, which has to be switched at the same time.
+            // Override without editing this file: ./gradlew -PauthProvider=firebase ...
+            val authProvider = providers.gradleProperty("authProvider").getOrElse("dev")
+            buildConfigField("String", "AUTH_PROVIDER", "\"$authProvider\"")
         }
         getByName("release") {
             buildConfigField("String", "API_BASE_URL", "\"\"")
+            buildConfigField("String", "DEV_TOKEN", "\"\"")
+            buildConfigField("String", "AUTH_PROVIDER", "\"firebase\"")
         }
     }
 }
@@ -45,10 +54,14 @@ dependencies {
     implementation("androidx.compose.material3:material3")
     implementation("androidx.compose.ui:ui-tooling-preview")
     implementation("androidx.lifecycle:lifecycle-viewmodel-ktx:2.9.4")
-    implementation(platform("com.google.firebase:firebase-bom:34.19.0"))
+
+    // Authentication (e): Firebase issues the ID token that TokenProvider puts on every request.
+    implementation(platform("com.google.firebase:firebase-bom:34.1.0"))
     implementation("com.google.firebase:firebase-auth")
-    testImplementation("junit:junit:4.13.2")
-    testImplementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:1.10.2")
-    testImplementation("org.json:json:20240303")
+
+    // Sensor (a): Google's code scanner. Runs its capture UI inside Play Services, so the app
+    // needs no CAMERA permission and no CameraX preview of its own.
+    implementation("com.google.android.gms:play-services-code-scanner:16.1.0")
+
     debugImplementation("androidx.compose.ui:ui-tooling")
 }

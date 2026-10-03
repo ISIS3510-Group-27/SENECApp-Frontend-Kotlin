@@ -1,5 +1,6 @@
 package com.senecapp
 
+import android.app.Application
 import android.content.Context
 import android.hardware.Sensor
 import android.hardware.SensorEvent
@@ -15,6 +16,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.ViewModelStore
@@ -124,7 +126,7 @@ class MainActivity : ComponentActivity(), SensorEventListener {
 
 @Composable
 private fun SessionStatus(title: String, error: String? = null, onRetry: (() -> Unit)? = null,
-    onSignOut: (() -> Unit)? = null) {
+                          onSignOut: (() -> Unit)? = null) {
     DemoView(title, showSampleLabel = false) {
         if (error == null) CircularProgressIndicator(color = viewAccent)
         else ViewText(error)
@@ -135,18 +137,41 @@ private fun SessionStatus(title: String, error: String? = null, onRetry: (() -> 
 
 @Composable
 private fun ProtectedContent(uid: String, profile: UserProfile, highContrast: Boolean, profileLoading: Boolean,
-    profileError: String?, onRefreshProfile: () -> Unit, onSignOut: () -> Unit) {
+                             profileError: String?, onRefreshProfile: () -> Unit, onSignOut: () -> Unit) {
+    val application = LocalContext.current.applicationContext as Application
     // This store is disposed on logout or session checks, cancelling requests and clearing user data.
     val owner = remember(uid) { object : ViewModelStoreOwner { override val viewModelStore = ViewModelStore() } }
     DisposableEffect(owner) { onDispose { owner.viewModelStore.clear() } }
-    val provider = remember(owner) { ViewModelProvider(owner, ViewModelProvider.NewInstanceFactory()) }
+    // AndroidViewModelFactory also builds the plain ViewModels; MyRSOsViewModel needs the Application.
+    val provider = remember(owner) { ViewModelProvider(owner, ViewModelProvider.AndroidViewModelFactory(application)) }
     val organizations = remember(owner) { provider[OrganizationsViewModel::class.java] }
     val recommendations = remember(owner) { provider[GroupRecommendationsViewModel::class.java] }
     val freeNow = remember(owner) { provider[FreeNowViewModel::class.java] }
     val events = remember(owner) { provider[CampusEventsViewModel::class.java] }
     val profileRecommendations = remember(owner) { provider["profileRecommendations", GroupRecommendationsViewModel::class.java] }
+    val myRsos = remember(owner) { provider[MyRSOsViewModel::class.java] }
+    val createGroup = remember(owner) { provider[CreateGroupViewModel::class.java] }
+    val checkIn = remember(owner) { provider[EventCheckInViewModel::class.java] }
     var selectedTab by rememberSaveable(uid) { mutableStateOf("Discover") }
-    BackHandler(enabled = selectedTab != "Discover") { selectedTab = "Discover" }
+    var creatingGroup by rememberSaveable(uid) { mutableStateOf(false) }
+    BackHandler(enabled = creatingGroup) { creatingGroup = false }
+    BackHandler(enabled = !creatingGroup && selectedTab != "Discover") { selectedTab = "Discover" }
+
+    // The proposal form replaces the whole screen, bottom bar included, until it is sent or dismissed.
+    if (creatingGroup) {
+        CreateGroupScreen(state = createGroup.state, onLoadCatalogue = createGroup::loadCatalogue,
+            onName = createGroup::setName, onCategory = createGroup::setCategory,
+            onDescription = createGroup::setDescription, onContactEmail = createGroup::setContactEmail,
+            onToggleInterest = createGroup::toggleInterest, onSubmit = createGroup::submit,
+            onDone = {
+                createGroup.reset()
+                creatingGroup = false
+                myRsos.refresh() // the pending proposal shows up with its badge straight away
+            },
+            onBack = { creatingGroup = false })
+        return
+    }
+
     Column(Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.navigationBars)) {
         Box(Modifier.weight(1f)) {
             when (selectedTab) {
@@ -155,7 +180,13 @@ private fun ProtectedContent(uid: String, profile: UserProfile, highContrast: Bo
                     onLocationConsent = freeNow::setLocationConsent, onRetryLocationConsent = freeNow::refreshConsent,
                     onUseLocation = freeNow::useLocation, onLocationUnavailable = freeNow::locationUnavailable,
                     campusEventsState = events.state, onLoadEvents = events::load,
-                    onOpenEvent = events::open, onCloseEvent = events::close)
+                    onOpenEvent = events::open,
+                    onCloseEvent = { events.close(); checkIn.clear() },
+                    checkInState = checkIn.state, onStartScan = checkIn::startScan,
+                    onScanFailed = checkIn::scanFailed, onScanCancelled = checkIn::scanCancelled,
+                    onCheckIn = checkIn::checkIn)
+                "My RSOs" -> MyRSOsScreen(state = myRsos.state, onLoad = myRsos::load,
+                    onCreateGroup = { creatingGroup = true })
                 "Profile" -> ProfileScreen(profile = profile, loading = profileLoading, error = profileError,
                     onRefresh = onRefreshProfile, onSignOut = onSignOut,
                     recommendationsState = profileRecommendations.state, onLoadRecommendations = profileRecommendations::load,
@@ -163,6 +194,7 @@ private fun ProtectedContent(uid: String, profile: UserProfile, highContrast: Bo
                 else -> DiscoverScreen(showBottomNavigation = false, highContrast = highContrast,
                     organizationsState = organizations.state, onSearch = organizations::search,
                     onOpenOrganization = organizations::open, onCloseOrganization = organizations::close,
+                    onToggleSave = organizations::toggleSave,
                     recommendationsState = recommendations.state, onLoadRecommendations = recommendations::load,
                     onOpenRecommendedGroup = recommendations::openGroup, onJoinRecommendedGroup = recommendations::joinGroup)
             }

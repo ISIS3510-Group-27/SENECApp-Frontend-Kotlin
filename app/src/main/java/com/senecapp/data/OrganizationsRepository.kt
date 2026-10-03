@@ -21,14 +21,26 @@ class OrganizationsRepository {
             Organization(id = item.getInt("id"), name = item.getString("name"),
                 category = category.getString("label"), categorySlug = category.getString("slug"),
                 members = item.getInt("member_count"), color = item.optString("color").takeIf { it.startsWith("#") },
-                hasUpcomingEvent = !item.isNull("next_event"))
+                hasUpcomingEvent = !item.isNull("next_event"),
+                isSaved = item.optBoolean("is_saved", false))
         }
     }
 
-    // Keep search attribution for the existing BQ12 flow.
+
     suspend fun detail(id: Int, fromSearch: Boolean): String = withContext(Dispatchers.IO) {
         val entryPoint = if (fromSearch) "search" else "explore"
         JSONObject(api.request("/groups/$id?entry_point=$entryPoint")).getString("description")
+    }
+
+
+    suspend fun save(id: Int) = withContext(Dispatchers.IO) {
+        api.request("/groups/$id/save?source=explore", "PUT")
+        Unit
+    }
+
+    suspend fun unsave(id: Int) = withContext(Dispatchers.IO) {
+        api.request("/groups/$id/save", "DELETE")
+        Unit
     }
 
     private fun encode(value: String): String = URLEncoder.encode(value, "UTF-8")
