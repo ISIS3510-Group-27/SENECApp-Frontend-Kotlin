@@ -31,10 +31,13 @@ import com.senecapp.ui.DiscoverScreen
 import com.senecapp.ui.GroupRecommendationsViewModel
 import com.senecapp.ui.OrganizationsViewModel
 import com.senecapp.ui.CampusEventsViewModel
+import com.senecapp.ui.RegistrationScreen
+import com.senecapp.ui.RegistrationViewModel
 
 class MainActivity : ComponentActivity(), SensorEventListener {
     private val organizationsViewModel by lazy { ViewModelProvider(this)[OrganizationsViewModel::class.java] }
     private val recommendationsViewModel by lazy { ViewModelProvider(this)[GroupRecommendationsViewModel::class.java] }
+    private val registrationViewModel by lazy { ViewModelProvider(this)[RegistrationViewModel::class.java] }
     private val freeNowViewModel by lazy { ViewModelProvider(this)[FreeNowViewModel::class.java] }
     private val campusEventsViewModel by lazy { ViewModelProvider(this)[CampusEventsViewModel::class.java] }
     // Keep request attribution independent from the Discover recommendation list.
@@ -50,9 +53,17 @@ class MainActivity : ComponentActivity(), SensorEventListener {
         super.onCreate(savedInstanceState)
 
         setContent {
-            LocalBackendAccess {
             var selectedTab by rememberSaveable { mutableStateOf("Discover") }
-            BackHandler(enabled = selectedTab != "Discover") { selectedTab = "Discover" }
+            var registering by rememberSaveable { mutableStateOf(false) }
+            BackHandler(enabled = registering || selectedTab != "Discover") {
+                if (registering) registering = false else selectedTab = "Discover"
+            }
+            if (registering) {
+                RegistrationScreen(registrationViewModel.state, registrationViewModel::create,
+                    registrationViewModel::resend, registrationViewModel::checkVerification,
+                    registrationViewModel::useAnotherAccount, onClose = { registering = false })
+            } else {
+            LocalBackendAccess {
             Column(Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.navigationBars)) {
                 Box(Modifier.weight(1f)) {
                     when (selectedTab) {
@@ -71,6 +82,7 @@ class MainActivity : ComponentActivity(), SensorEventListener {
                             onCloseEvent = campusEventsViewModel::close,
                         )
                         "Profile" -> ProfileScreen(
+                            onCreateAccount = { registrationViewModel.restoreAccount(); registering = true },
                             recommendationsState = profileRecommendationsViewModel.state,
                             onLoadRecommendations = profileRecommendationsViewModel::load,
                             onOpenRecommendedGroup = profileRecommendationsViewModel::openGroup,
@@ -91,6 +103,7 @@ class MainActivity : ComponentActivity(), SensorEventListener {
                     }
                 }
                 AppBottomNavigation(selectedTab, highContrast.value) { selectedTab = it }
+            }
             }
             }
         }
