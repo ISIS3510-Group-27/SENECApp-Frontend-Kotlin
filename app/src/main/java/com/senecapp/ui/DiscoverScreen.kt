@@ -24,9 +24,12 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Icon
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -49,6 +52,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.senecapp.R
 import com.senecapp.data.Organization
+import com.senecapp.data.GroupRecommendation
 import kotlinx.coroutines.delay
 
 private data class DiscoverPalette(
@@ -109,6 +113,10 @@ fun DiscoverScreen(
         categories = previewOrganizations.map { it.categorySlug to it.category },
     ),
     onSearch: (String, String?) -> Unit = { _, _ -> },
+    recommendationsState: GroupRecommendationsUiState = GroupRecommendationsUiState(loading = false),
+    onLoadRecommendations: () -> Unit = {},
+    onOpenRecommendedGroup: (Int) -> Unit = {},
+    onJoinRecommendedGroup: (Int) -> Unit = {},
 ) {
     val palette = if (highContrast) brightLightPalette else standardPalette
     var query by rememberSaveable { mutableStateOf("") }
@@ -118,6 +126,9 @@ fun DiscoverScreen(
         delay(350)
         onSearch(query, category)
     }
+    LaunchedEffect(query.isBlank() && category == null) {
+        if (query.isBlank() && category == null) onLoadRecommendations()
+    }
 
     Column(
         modifier = Modifier.fillMaxSize().background(palette.background).windowInsetsPadding(WindowInsets.safeDrawing),
@@ -125,6 +136,13 @@ fun DiscoverScreen(
         Column(modifier = Modifier.weight(1f).verticalScroll(rememberScrollState())) {
             Header(palette)
             SearchField(query = query, onQueryChange = { query = it }, palette = palette)
+
+            if (query.isBlank() && category == null) {
+                GroupRecommendationsSection(
+                    recommendationsState, palette, onLoadRecommendations,
+                    onOpenRecommendedGroup, onJoinRecommendedGroup,
+                )
+            }
 
             if (query.isBlank() && category == null && organizationsState.items.isNotEmpty()) {
                 SectionLabel("FEATURED", palette, Modifier.padding(start = 24.dp, top = 20.dp, bottom = 8.dp))
@@ -172,6 +190,85 @@ fun DiscoverScreen(
             }
         }
         if (showBottomNavigation) BottomNavigation(palette)
+    }
+}
+
+@Composable
+private fun GroupRecommendationsSection(
+    state: GroupRecommendationsUiState,
+    palette: DiscoverPalette,
+    onRetry: () -> Unit,
+    onOpenGroup: (Int) -> Unit,
+    onJoinGroup: (Int) -> Unit,
+) {
+    var selected by remember { mutableStateOf<GroupRecommendation?>(null) }
+    val groups = state.result?.items.orEmpty()
+    SectionLabel("FOR YOU", palette, Modifier.padding(start = 24.dp, top = 20.dp, bottom = 8.dp))
+    when {
+        state.loading -> Text("Finding groups for you...", color = palette.muted, fontFamily = nunito,
+            fontSize = 13.sp, modifier = Modifier.padding(horizontal = 24.dp))
+        state.error != null -> Column(Modifier.padding(horizontal = 24.dp)) {
+            Text(state.error, color = palette.foreground, fontFamily = nunito, fontSize = 13.sp)
+            Text("Retry", color = palette.accent, fontFamily = nunito, fontSize = 13.sp,
+                modifier = Modifier.clickable(onClick = onRetry).padding(vertical = 6.dp))
+        }
+        groups.isEmpty() -> Text("No suggestions available yet.", color = palette.muted,
+            fontFamily = nunito, fontSize = 13.sp, modifier = Modifier.padding(horizontal = 24.dp))
+        else -> Row(
+            modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            Spacer(Modifier.width(12.dp))
+            groups.forEach { group ->
+                Column(
+                    modifier = Modifier.width(225.dp).clip(RoundedCornerShape(16.dp))
+                        .background(palette.card).border(1.dp, palette.border, RoundedCornerShape(16.dp))
+                        .clickable { selected = group; onOpenGroup(group.id) }.padding(14.dp),
+                    verticalArrangement = Arrangement.spacedBy(6.dp),
+                ) {
+                    Text(group.category.uppercase(), color = palette.accent, fontFamily = nunito,
+                        fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                    Text(group.name, color = palette.foreground, fontFamily = bricolage,
+                        fontSize = 16.sp, fontWeight = FontWeight.Bold, maxLines = 1,
+                        overflow = TextOverflow.Ellipsis)
+                    Text(group.reasons.firstOrNull() ?: "Suggested for you", color = palette.muted,
+                        fontFamily = nunito, fontSize = 12.sp, maxLines = 2)
+                    Text("${group.memberCount} members", color = palette.muted, fontFamily = nunito,
+                        fontSize = 11.sp)
+                }
+            }
+            Spacer(Modifier.width(12.dp))
+        }
+    }
+
+    selected?.let { group ->
+        val joined = group.isMember || group.id in state.joinedGroupIds
+        AlertDialog(
+            onDismissRequest = { selected = null },
+            title = { Text(group.name, color = palette.foreground, fontFamily = bricolage) },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text(group.description, color = palette.foreground, fontFamily = nunito,
+                        maxLines = 5, overflow = TextOverflow.Ellipsis)
+                    group.reasons.forEach { reason ->
+                        Text("• $reason", color = palette.muted, fontFamily = nunito)
+                    }
+                    state.actionError?.let { error ->
+                        Text(error, color = palette.accent, fontFamily = nunito)
+                    }
+                    if (joined) Text("You joined this group.", color = palette.accent, fontFamily = nunito)
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = { onJoinGroup(group.id) }, enabled = !joined && state.joiningGroupId == null) {
+                    Text(if (joined) "Joined" else if (state.joiningGroupId == group.id) "Joining..." else "Join group")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { selected = null }) { Text("Close") }
+            },
+            containerColor = palette.card,
+        )
     }
 }
 

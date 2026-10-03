@@ -28,10 +28,12 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.lifecycle.ViewModelProvider
 import com.senecapp.sensors.AdaptiveContrastPolicy
 import com.senecapp.ui.DiscoverScreen
+import com.senecapp.ui.GroupRecommendationsViewModel
 import com.senecapp.ui.OrganizationsViewModel
 
 class MainActivity : ComponentActivity(), SensorEventListener {
     private val organizationsViewModel by lazy { ViewModelProvider(this)[OrganizationsViewModel::class.java] }
+    private val recommendationsViewModel by lazy { ViewModelProvider(this)[GroupRecommendationsViewModel::class.java] }
     private val freeNowViewModel by lazy { ViewModelProvider(this)[FreeNowViewModel::class.java] }
     private val sensorManager by lazy { getSystemService(Context.SENSOR_SERVICE) as SensorManager }
     private val lightSensor by lazy { sensorManager.getDefaultSensor(Sensor.TYPE_LIGHT) }
@@ -64,6 +66,10 @@ class MainActivity : ComponentActivity(), SensorEventListener {
                             highContrast = highContrast.value,
                             organizationsState = organizationsViewModel.state,
                             onSearch = organizationsViewModel::search,
+                            recommendationsState = recommendationsViewModel.state,
+                            onLoadRecommendations = recommendationsViewModel::load,
+                            onOpenRecommendedGroup = recommendationsViewModel::openGroup,
+                            onJoinRecommendedGroup = recommendationsViewModel::joinGroup,
                         )
                     }
                 }
