@@ -10,6 +10,10 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.foundation.background
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -17,6 +21,9 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.unit.sp
 import com.senecapp.BuildConfig
 import com.senecapp.data.FreeNowEvent
 import com.senecapp.data.EventCoordinates
@@ -36,38 +43,56 @@ internal fun FreeNowSection(
     onFallback: (String) -> Unit,
 ) {
     var selectedEvent by remember { mutableStateOf<FreeNowEvent?>(null) }
+    var previewMenu by remember { mutableStateOf(false) }
 
     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-        ViewText("FREE RIGHT NOW", color = viewAccent)
-        ViewText("Event suggestions based on your class schedule and current time", color = viewMuted)
-        NearbyEventsControls(state, onConsent, onRetryConsent, onLocation, onFallback)
-        Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-            Text("Refresh now", color = viewAccent, fontFamily = viewNunito,
-                modifier = Modifier.clickable(onClick = onRefresh).padding(vertical = 4.dp))
-            if (BuildConfig.DEBUG) {
-                Text("Demo: noon today", color = viewAccent, fontFamily = viewNunito,
-                    modifier = Modifier.clickable(onClick = onDemoNoon).padding(vertical = 4.dp))
+        ViewCard {
+            ViewText("Events for your free time", heading = true)
+            if (state.demoMode) {
+                Text("Demo · Today at noon", color = viewAccent, fontFamily = viewNunito,
+                    fontSize = 12.sp, modifier = Modifier.background(viewSecondary, RoundedCornerShape(8.dp))
+                        .padding(horizontal = 10.dp, vertical = 6.dp))
+            }
+            state.result?.let { result ->
+                result.freeEndsAt?.let { ViewText("Free until ${campusTime(it)}") }
+                result.locationName?.let { ViewText("Near $it", color = viewMuted) }
+                ViewText(when (result.locationSource) {
+                    "gps" -> "Using your location"
+                    "schedule" -> "Using your schedule"
+                    else -> "No location available"
+                }, color = viewMuted)
+                if (!result.scheduleKnown) {
+                    ViewText("Add your class schedule for more precise suggestions.", color = viewMuted)
+                }
+            }
+            if (state.loading) ViewText("Finding suggestions…", color = viewMuted)
+            state.error?.let { ViewText(it, color = viewForeground) }
+            NearbyEventsControls(state, onConsent, onRetryConsent, onLocation, onFallback)
+            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                TextButton(onClick = onRefresh) {
+                    Text("Refresh suggestions", color = viewAccent, fontFamily = viewNunito)
+                }
+                if (BuildConfig.DEBUG) {
+                    Box {
+                        TextButton(onClick = { previewMenu = true },
+                            modifier = Modifier.semantics { contentDescription = "Preview options" }) {
+                            Text("•••", color = viewMuted)
+                        }
+                        DropdownMenu(expanded = previewMenu, onDismissRequest = { previewMenu = false }) {
+                            DropdownMenuItem(text = { Text("Demo: noon today") }, onClick = {
+                                previewMenu = false
+                                onDemoNoon()
+                            })
+                            DropdownMenuItem(text = { Text("Use current time") }, onClick = {
+                                previewMenu = false
+                                onRefresh()
+                            })
+                        }
+                    }
+                }
             }
         }
-        if (state.demoMode) ViewText("Showing suggestions for noon today", color = viewMuted)
-
-        if (state.loading) ViewText("Finding a free block...", color = viewMuted)
-        state.error?.let { ViewText(it, color = viewForeground) }
         state.result?.let { result ->
-                ViewText(when (result.locationSource) {
-                    "gps" -> "Location source: GPS"
-                    "schedule" -> "Location source: schedule building"
-                    else -> "Location source: unavailable"
-                }, color = viewAccent)
-                if (result.freeMinutes != null) {
-                    ViewText("Free for ${result.freeMinutes} min · until ${campusTime(result.freeEndsAt)}")
-                }
-                if (result.locationName != null) {
-                    ViewText("Near ${result.locationName}", color = viewMuted)
-                }
-                if (!result.scheduleKnown) {
-                    ViewText("Add a class schedule for more precise suggestions.", color = viewMuted)
-                }
                 if (result.events.isEmpty()) {
                     ViewText(result.message ?: "No events fit your free time right now.", color = viewMuted)
                 }
