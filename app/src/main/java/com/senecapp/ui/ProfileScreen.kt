@@ -4,6 +4,8 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.tooling.preview.Preview
@@ -11,12 +13,14 @@ import androidx.compose.ui.unit.dp
 
 @Composable
 fun ProfileScreen(
+    onCreateAccount: () -> Unit = {},
     recommendationsState: GroupRecommendationsUiState = GroupRecommendationsUiState(loading = false),
     onLoadRecommendations: () -> Unit = {},
     onOpenRecommendedGroup: (Int) -> Unit = {},
     onJoinRecommendedGroup: (Int) -> Unit = {},
 ) {
     DemoView("Profile", showSampleLabel = false) {
+        TextButton(onClick = onCreateAccount) { Text("Create account", color = viewAccent) }
         ViewCard {
             Box(Modifier.size(66.dp).background(viewPrimary, RoundedCornerShape(16.dp)),
                 contentAlignment = Alignment.Center) { ViewText("DV", heading = true) }
