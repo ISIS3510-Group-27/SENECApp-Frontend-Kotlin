@@ -115,6 +115,7 @@ fun DiscoverScreen(
     onSearch: (String, String?, Boolean) -> Unit = { _, _, _ -> },
     onOpenOrganization: (Int, Boolean) -> Unit = { _, _ -> },
     onCloseOrganization: () -> Unit = {},
+    onToggleSave: (Int) -> Unit = {},
     recommendationsState: GroupRecommendationsUiState = GroupRecommendationsUiState(loading = false),
     onLoadRecommendations: () -> Unit = {},
     onOpenRecommendedGroup: (Int) -> Unit = {},
@@ -205,22 +206,37 @@ fun DiscoverScreen(
                 }
             }
         }
-    selectedOrganization?.let { organization ->
-        fun closeDetail() { selectedOrganization = null; onCloseOrganization() }
-        AlertDialog(onDismissRequest = { closeDetail() },
-            title = { Text(organization.name, fontFamily = bricolage) },
-            text = {
-                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text(organization.category, fontFamily = nunito)
-                    if (organizationsState.detailLoading) Text("Loading details…", fontFamily = nunito)
-                    organizationsState.detailDescription?.let { Text(it, fontFamily = nunito) }
-                    organizationsState.detailError?.let {
-                        Text(it, fontFamily = nunito)
-                        TextButton(onClick = { onOpenOrganization(organization.id, fromSearch) }) { Text("Retry") }
+        selectedOrganization?.let { organization ->
+            fun closeDetail() { selectedOrganization = null; onCloseOrganization() }
+            // Read the save flag from the live list, not from the captured copy: an optimistic toggle
+            // rewrites the list, and the dialog has to follow it.
+            val live = organizationsState.items.firstOrNull { it.id == organization.id } ?: organization
+            AlertDialog(onDismissRequest = { closeDetail() },
+                title = { Text(organization.name, fontFamily = bricolage) },
+                text = {
+                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Text(organization.category, fontFamily = nunito)
+                        if (organizationsState.detailLoading) Text("Loading details…", fontFamily = nunito)
+                        organizationsState.detailDescription?.let { Text(it, fontFamily = nunito) }
+                        organizationsState.detailError?.let {
+                            Text(it, fontFamily = nunito)
+                            TextButton(onClick = { onOpenOrganization(organization.id, fromSearch) }) { Text("Retry") }
+                        }
+                        organizationsState.saveError?.let { Text(it, fontFamily = nunito, color = palette.accent) }
                     }
-                }
-            }, confirmButton = { TextButton(onClick = { closeDetail() }) { Text("Close") } })
-    }
+                },
+                confirmButton = {
+                    // The save that BQ13 counts. It is sent with source=explore, matching the
+                    // entry_point=explore the view request already records.
+                    TextButton(
+                        onClick = { onToggleSave(organization.id) },
+                        enabled = organizationsState.savingId == null,
+                    ) {
+                        Text(if (live.isSaved) "Saved ✓" else "Save")
+                    }
+                },
+                dismissButton = { TextButton(onClick = { closeDetail() }) { Text("Close") } })
+        }
         if (showBottomNavigation) BottomNavigation(palette)
     }
 }
@@ -456,11 +472,11 @@ private fun BottomNavigation(palette: DiscoverPalette, selectedTab: String = "Di
         listOf(
             Triple(R.drawable.ic_home, "Discover", selectedTab == "Discover"),
             Triple(R.drawable.ic_event, "Events", selectedTab == "Events"),
-            Triple(R.drawable.ic_group, "My RSOs", false),
+            Triple(R.drawable.ic_group, "My RSOs", selectedTab == "My RSOs"),
             Triple(R.drawable.ic_person, "Profile", selectedTab == "Profile"),
         ).forEach { (icon, label, selected) ->
             Column(
-                modifier = Modifier.weight(1f).clickable(enabled = label != "My RSOs") { onNavigate(label) },
+                modifier = Modifier.weight(1f).clickable { onNavigate(label) },
                 horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.spacedBy(4.dp),
             ) {

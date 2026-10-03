@@ -22,6 +22,8 @@ data class OrganizationsUiState(
     val detailDescription: String? = null,
     val detailError: String? = null,
     val searchFiltered: Boolean = false,
+    val savingId: Int? = null,
+    val saveError: String? = null,
 )
 
 class OrganizationsViewModel : ViewModel() {
@@ -30,6 +32,7 @@ class OrganizationsViewModel : ViewModel() {
         private set
     private var request: Job? = null
     private var detailRequest: Job? = null
+    private var saveRequest: Job? = null
 
     fun search(query: String, categorySlug: String?, upcomingOnly: Boolean = false) {
         request?.cancel()
@@ -69,6 +72,40 @@ class OrganizationsViewModel : ViewModel() {
 
     fun close() {
         detailRequest?.cancel()
-        state = state.copy(detailLoading = false, detailDescription = null, detailError = null)
+        state = state.copy(detailLoading = false, detailDescription = null, detailError = null,
+            saveError = null)
     }
+
+    /**
+     * BQ13 — the save half of the question. The view half is already recorded by [open], which
+     * sends `entry_point=explore` whenever the list is not filtered by a search.
+     *
+     * The flag flips before the request so the button answers immediately, and flips back if the
+     * backend refuses: both calls are idempotent, so a retry after a rollback is safe.
+     */
+    fun toggleSave(id: Int) {
+        if (state.savingId != null) return
+        val organization = state.items.firstOrNull { it.id == id } ?: return
+        val target = !organization.isSaved
+        saveRequest?.cancel()
+        state = state.copy(items = state.items.withSaved(id, target), savingId = id, saveError = null)
+        saveRequest = viewModelScope.launch {
+            try {
+                if (target) repository.save(id) else repository.unsave(id)
+                state = state.copy(savingId = null)
+            } catch (cancelled: CancellationException) {
+                throw cancelled
+            } catch (failure: Exception) {
+                Log.e("Organizations", "Could not toggle save for group $id", failure)
+                state = state.copy(
+                    items = state.items.withSaved(id, !target),
+                    savingId = null,
+                    saveError = failure.message ?: "Could not update your saved list.",
+                )
+            }
+        }
+    }
+
+    private fun List<Organization>.withSaved(id: Int, saved: Boolean): List<Organization> =
+        map { if (it.id == id) it.copy(isSaved = saved) else it }
 }

@@ -8,4 +8,6 @@ data class Organization(
     val members: Int,
     val color: String?,
     val hasUpcomingEvent: Boolean,
+    val isSaved: Boolean = false,
+
 )
