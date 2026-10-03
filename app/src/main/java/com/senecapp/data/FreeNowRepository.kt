@@ -13,9 +13,10 @@ import java.util.UUID
 class FreeNowRepository {
     private val sessionId = UUID.randomUUID().toString()
 
-    suspend fun suggestions(at: String? = null): FreeNowSuggestion = withContext(Dispatchers.IO) {
+    suspend fun suggestions(at: String? = null, coordinates: EventCoordinates? = null): FreeNowSuggestion = withContext(Dispatchers.IO) {
         val demoTime = at?.let { "&at=${URLEncoder.encode(it, "UTF-8")}" } ?: ""
-        val connection = get("/recommendations/events/free-now?limit=3$demoTime")
+        val gps = coordinates?.let { "&latitude=${it.latitude}&longitude=${it.longitude}" } ?: ""
+        val connection = get("/recommendations/events/free-now?limit=3$demoTime$gps")
         try {
             checkResponse(connection)
             val root = JSONObject(connection.inputStream.bufferedReader().use { it.readText() })
@@ -29,6 +30,7 @@ class FreeNowRepository {
                 freeMinutes = block?.getInt("minutes"),
                 scheduleKnown = root.getBoolean("schedule_known"),
                 locationName = location.optJSONObject("building")?.getString("name"),
+                locationSource = location.optString("source", "none"),
                 events = List(items.length()) { index ->
                     val item = items.getJSONObject(index)
                     val event = item.getJSONObject("event")
@@ -49,6 +51,30 @@ class FreeNowRepository {
         } finally {
             connection.disconnect()
         }
+    }
+
+    suspend fun locationConsent(): Boolean = withContext(Dispatchers.IO) {
+        val connection = get("/me")
+        try {
+            checkResponse(connection)
+            JSONObject(connection.inputStream.bufferedReader().use { it.readText() })
+                .getBoolean("location_opt_in")
+        } finally { connection.disconnect() }
+    }
+
+    suspend fun setLocationConsent(enabled: Boolean): Boolean = withContext(Dispatchers.IO) {
+        val connection = get("/me")
+        try {
+            connection.requestMethod = "PATCH"
+            connection.doOutput = true
+            connection.setRequestProperty("Content-Type", "application/json")
+            connection.outputStream.use {
+                it.write(JSONObject().put("location_opt_in", enabled).toString().toByteArray(Charsets.UTF_8))
+            }
+            checkResponse(connection)
+            JSONObject(connection.inputStream.bufferedReader().use { it.readText() })
+                .getBoolean("location_opt_in")
+        } finally { connection.disconnect() }
     }
 
     suspend fun openEvent(eventId: Int, requestId: String) = withContext(Dispatchers.IO) {

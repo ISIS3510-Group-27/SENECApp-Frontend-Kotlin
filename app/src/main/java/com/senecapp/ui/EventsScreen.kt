@@ -16,6 +16,7 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import com.senecapp.R
+import com.senecapp.data.EventCoordinates
 
 private data class SampleEvent(val title: String, val organization: String, val date: String,
     val location: String, val joined: Boolean)
@@ -33,11 +34,16 @@ fun EventsScreen(
     onLoadFreeNow: () -> Unit = {},
     onDemoNoon: () -> Unit = {},
     onOpenSuggestedEvent: (Int) -> Unit = {},
+    onLocationConsent: (Boolean) -> Unit = {},
+    onRetryLocationConsent: () -> Unit = {},
+    onUseLocation: (EventCoordinates?, Boolean) -> Unit = { _, _ -> },
+    onLocationUnavailable: (String) -> Unit = {},
 ) {
     var onlyJoined by rememberSaveable { mutableStateOf(false) }
     LaunchedEffect(Unit) { onLoadFreeNow() }
     DemoView("SENECApp Events", showSampleLabel = false) {
-        FreeNowSection(freeNowState, onLoadFreeNow, onDemoNoon, onOpenSuggestedEvent)
+        FreeNowSection(freeNowState, onLoadFreeNow, onDemoNoon, onOpenSuggestedEvent,
+            onLocationConsent, onRetryLocationConsent, onUseLocation, onLocationUnavailable)
         Column(Modifier.fillMaxWidth().background(
             Brush.horizontalGradient(listOf(viewPrimary, Color(0xFFFF6B35))), RoundedCornerShape(20.dp)
         ).padding(18.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
