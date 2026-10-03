@@ -9,11 +9,6 @@ Android app built with Jetpack Compose.
 - Events — Daniel Vergara
 - Profile — Daniel Vergara
 
-Events and Profile use clearly labeled sample data for a UI-only demo. Events supports
-All Events / My RSOs filtering; Profile settings are display-only. Open both views from
-the bottom navigation or their Compose Previews. No authentication or backend calls
-are implemented for these views.
-
 ## Features
 
 - Ambient light adaptive contrast — Camilo Castilla
