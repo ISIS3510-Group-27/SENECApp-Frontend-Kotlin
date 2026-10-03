@@ -30,9 +30,7 @@ fun RegistrationScreen(state: RegistrationUiState, onCreate: (String, String, St
     LaunchedEffect(state.email) {
         if (state.email != null) { password = ""; confirmation = ""; showPassword = false }
     }
-    MaterialTheme(colorScheme = darkColorScheme(primary = viewAccent, onPrimary = viewBackground,
-        background = viewBackground, onBackground = viewForeground, surface = viewCard,
-        onSurface = viewForeground, onSurfaceVariant = viewMuted)) {
+    AuthTheme {
         DemoView(if (state.email == null) "Create account" else "Verify your email", showSampleLabel = false) {
             if (!state.configured) ViewText("Registration is unavailable in this build. Firebase setup is required.", color = viewMuted)
             if (state.email == null) {
@@ -61,7 +59,7 @@ fun RegistrationScreen(state: RegistrationUiState, onCreate: (String, String, St
                     ViewText(state.email, color = viewAccent)
                     if (state.verified) {
                         ViewText("Email verified", heading = true)
-                        ViewText("Your account is ready for sign-in.", color = viewMuted)
+                        ViewText("Connecting your verified account…")
                     } else {
                         ViewText("Check your inbox", heading = true)
                         ViewText("Open the verification link, then return here and check your email status. You can also open the link on your computer.")
@@ -78,7 +76,7 @@ fun RegistrationScreen(state: RegistrationUiState, onCreate: (String, String, St
             }
             state.message?.let { ViewText(it, color = viewAccent) }
             state.error?.let { Text(it, color = MaterialTheme.colorScheme.error, fontFamily = viewNunito) }
-            TextButton(onClick = onClose) { Text("Back to profile") }
+            TextButton(onClick = onClose, enabled = !state.busy) { Text("Back to sign in") }
         }
     }
 }

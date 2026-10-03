@@ -1,68 +1,58 @@
 package com.senecapp.ui
 
-import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
-import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
-import androidx.compose.ui.Alignment
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import com.senecapp.data.UserProfile
 
 @Composable
 fun ProfileScreen(
-    onCreateAccount: () -> Unit = {},
+    profile: UserProfile? = null,
+    loading: Boolean = false,
+    error: String? = null,
+    onRefresh: () -> Unit = {},
+    onSignOut: () -> Unit = {},
     recommendationsState: GroupRecommendationsUiState = GroupRecommendationsUiState(loading = false),
     onLoadRecommendations: () -> Unit = {},
     onOpenRecommendedGroup: (Int) -> Unit = {},
     onJoinRecommendedGroup: (Int) -> Unit = {},
 ) {
+    LaunchedEffect(Unit) { onRefresh() }
     DemoView("Profile", showSampleLabel = false) {
-        TextButton(onClick = onCreateAccount) { Text("Create account", color = viewAccent) }
-        ViewCard {
-            Box(Modifier.size(66.dp).background(viewPrimary, RoundedCornerShape(16.dp)),
-                contentAlignment = Alignment.Center) { ViewText("DV", heading = true) }
-            ViewText("Daniel Vergara", heading = true)
-            ViewText("Sample student profile", color = viewAccent)
-            ViewText("daniel@example.com", color = viewMuted)
-            ViewText("Systems Engineering · Semester 6", color = viewMuted)
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
-                listOf("2" to "RSOs", "11" to "Events", "2" to "Years").forEach { (value, label) ->
-                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        ViewText(value, heading = true)
-                        ViewText(label, color = viewMuted)
-                    }
-                }
+        if (profile == null) {
+            ViewText("Your profile is not available yet.")
+        } else {
+            ViewCard {
+                ViewText(profile.fullName ?: "Name not set", heading = true)
+                ViewText(profile.email)
+                ViewText("Verified university email", color = viewAccent)
+                ViewText(profile.program ?: "Program not set")
+                ViewText(profile.semester?.let { "Semester $it" } ?: "Semester not set")
             }
-        }
-        ViewText("INTERESTS", color = viewMuted)
-        FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            listOf("Tennis", "AI / ML", "Startups", "Travel", "Cars").forEach {
-                Box(Modifier.background(viewSecondary, RoundedCornerShape(10.dp)).padding(12.dp)) {
-                    ViewText(it)
-                }
+            ViewText("INTERESTS", color = viewAccent)
+            if (profile.interests.isEmpty()) ViewText("No interests added yet.")
+            else FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                profile.interests.forEach { interest -> ViewCard { ViewText(interest) } }
             }
-        }
-        ProfileRecommendationSection(recommendationsState, onLoadRecommendations,
-            onOpenRecommendedGroup, onJoinRecommendedGroup)
-        ViewText("ACCOUNT · PREVIEW", color = viewMuted)
-        ViewCard {
-            listOf("Notifications" to "Event alerts",
-                "Privacy Settings" to "Profile visibility",
-                "University Verification" to "Sample status: not verified",
-                "Help & Support" to "Campus support information").forEach { (title, subtitle) ->
-                Column(Modifier.padding(vertical = 8.dp)) {
-                    ViewText(title)
-                    ViewText(subtitle, color = viewMuted)
-                }
+            ViewCard {
+                ViewText("Preferences", heading = true)
+                ViewText("Location consent: ${if (profile.locationOptIn) "On" else "Off"}")
+                ViewText("Notifications preference: ${if (profile.notificationsOptIn) "On" else "Off"}")
+                ViewText("You can change location consent in Events.")
             }
+            ProfileRecommendationSection(recommendationsState, onLoadRecommendations,
+                onOpenRecommendedGroup, onJoinRecommendedGroup)
         }
-        ViewText("Account settings are display-only in this demo.", color = viewMuted)
+        error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
+        TextButton(onClick = onRefresh, enabled = !loading) { Text(if (loading) "Refreshing…" else "Refresh profile") }
+        OutlinedButton(onClick = onSignOut, modifier = Modifier.fillMaxWidth()) { Text("Sign out") }
     }
 }
 
 @Preview(showBackground = true, widthDp = 393, heightDp = 852)
 @Composable
-private fun ProfilePreview() { ProfileScreen() }
+private fun ProfilePreview() { AuthTheme { ProfileScreen() } }

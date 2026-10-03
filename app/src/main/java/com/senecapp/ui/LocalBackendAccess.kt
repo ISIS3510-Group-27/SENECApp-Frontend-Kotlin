@@ -19,7 +19,7 @@ import com.senecapp.BuildConfig
 private const val localNetworkPermission = "android.permission.ACCESS_LOCAL_NETWORK"
 
 @Composable
-internal fun LocalBackendAccess(content: @Composable () -> Unit) {
+internal fun LocalBackendAccess(onSignOut: (() -> Unit)? = null, content: @Composable () -> Unit) {
     val context = LocalContext.current
     val host = Uri.parse(BuildConfig.API_BASE_URL).host.orEmpty()
     val localHost = host == "localhost" || host == "::1" || host.startsWith("127.") ||
@@ -52,6 +52,7 @@ internal fun LocalBackendAccess(content: @Composable () -> Unit) {
                 context.startActivity(Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
                     Uri.parse("package:${context.packageName}")))
             }) { Text("Open app permissions", color = viewAccent) }
+            onSignOut?.let { TextButton(onClick = it) { Text("Sign out", color = viewAccent) } }
         }
     }
 }

@@ -4,7 +4,7 @@ plugins {
 }
 
 // The Firebase console's Android client file is supplied locally by the team.
-// Builds without it remain usable for the existing backend demo.
+// Without it the app shows the Firebase setup state and blocks protected content.
 if (file("google-services.json").exists()) {
     apply(plugin = "com.google.gms.google-services")
 }
@@ -31,11 +31,9 @@ android {
             val apiBaseUrl = providers.gradleProperty("apiBaseUrl")
                 .getOrElse("http://10.0.2.2:8000/api/v1")
             buildConfigField("String", "API_BASE_URL", "\"$apiBaseUrl\"")
-            buildConfigField("String", "DEV_TOKEN", "\"dev:s.arango@uniandes.edu.co\"")
         }
         getByName("release") {
             buildConfigField("String", "API_BASE_URL", "\"\"")
-            buildConfigField("String", "DEV_TOKEN", "\"\"")
         }
     }
 }
@@ -50,5 +48,7 @@ dependencies {
     implementation(platform("com.google.firebase:firebase-bom:34.19.0"))
     implementation("com.google.firebase:firebase-auth")
     testImplementation("junit:junit:4.13.2")
+    testImplementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:1.10.2")
+    testImplementation("org.json:json:20240303")
     debugImplementation("androidx.compose.ui:ui-tooling")
 }

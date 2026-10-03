@@ -15,6 +15,7 @@ import com.senecapp.auth.normalizedUniversityEmail
 import com.senecapp.auth.registrationError
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.cancelChildren
 
 data class RegistrationUiState(val configured: Boolean = false, val email: String? = null,
     val verified: Boolean = false, val busy: Boolean = false, val error: String? = null,
@@ -88,6 +89,11 @@ class RegistrationViewModel(application: Application) : AndroidViewModel(applica
         state = RegistrationUiState(configured = repository.configured)
     }
 
+    fun clear() {
+        viewModelScope.coroutineContext.cancelChildren()
+        state = RegistrationUiState(configured = repository.configured)
+    }
+
     private fun emailSent() {
         state = state.copy(message = "Verification email sent. Check your inbox and spam folder.",
             resendAt = SystemClock.elapsedRealtime() + 60_000)
@@ -95,7 +101,7 @@ class RegistrationViewModel(application: Application) : AndroidViewModel(applica
 }
 
 private fun registrationMessage(failure: Exception): String = when (failure) {
-    is FirebaseAuthUserCollisionException -> "This email already has an account. Use the sign-in flow when it is available."
+    is FirebaseAuthUserCollisionException -> "This email already has an account. Go back to sign in."
     is FirebaseAuthWeakPasswordException -> "The password does not meet the project's security requirements. Try a stronger password."
     is FirebaseNetworkException -> "Cannot connect to Firebase. Check your internet connection and retry."
     is FirebaseTooManyRequestsException -> "Too many requests. Wait a few minutes and try again."
