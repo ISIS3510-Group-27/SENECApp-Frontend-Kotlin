@@ -18,6 +18,10 @@ data class OrganizationsUiState(
     val items: List<Organization> = emptyList(),
     val categories: List<Pair<String, String>> = emptyList(),
     val error: String? = null,
+    val detailLoading: Boolean = false,
+    val detailDescription: String? = null,
+    val detailError: String? = null,
+    val searchFiltered: Boolean = false,
 )
 
 class OrganizationsViewModel : ViewModel() {
@@ -25,17 +29,19 @@ class OrganizationsViewModel : ViewModel() {
     var state by mutableStateOf(OrganizationsUiState())
         private set
     private var request: Job? = null
+    private var detailRequest: Job? = null
 
-    fun search(query: String, categorySlug: String?) {
+    fun search(query: String, categorySlug: String?, upcomingOnly: Boolean = false) {
         request?.cancel()
         request = viewModelScope.launch {
             state = state.copy(loading = true, items = emptyList(), error = null)
             try {
-                val items = repository.search(query, categorySlug)
-                val categories = if (query.isBlank() && categorySlug == null) {
+                val items = repository.search(query, categorySlug, upcomingOnly)
+                val categories = if (query.isBlank() && categorySlug == null && !upcomingOnly) {
                     items.map { it.categorySlug to it.category }.distinctBy { it.first }
                 } else state.categories
-                state = OrganizationsUiState(loading = false, items = items, categories = categories)
+                state = OrganizationsUiState(loading = false, items = items, categories = categories,
+                    searchFiltered = query.isNotBlank() || categorySlug != null || upcomingOnly)
             } catch (cancelled: CancellationException) {
                 throw cancelled
             } catch (failure: IOException) {
@@ -45,5 +51,24 @@ class OrganizationsViewModel : ViewModel() {
                 state = state.copy(loading = false, error = failure.message ?: "Could not load organizations")
             }
         }
+    }
+
+    fun open(id: Int, fromSearch: Boolean) {
+        detailRequest?.cancel()
+        state = state.copy(detailLoading = true, detailDescription = null, detailError = null)
+        detailRequest = viewModelScope.launch {
+            try {
+                val description = repository.detail(id, fromSearch)
+                state = state.copy(detailLoading = false, detailDescription = description)
+            } catch (cancelled: CancellationException) { throw cancelled
+            } catch (_: Exception) {
+                state = state.copy(detailLoading = false, detailError = "Could not load organization details. Tap Retry.")
+            }
+        }
+    }
+
+    fun close() {
+        detailRequest?.cancel()
+        state = state.copy(detailLoading = false, detailDescription = null, detailError = null)
     }
 }

@@ -12,16 +12,12 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
-import androidx.compose.material3.FilterChip
-import androidx.compose.material3.FilterChipDefaults
-import androidx.compose.material3.IconButton
 import androidx.compose.foundation.background
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
@@ -48,9 +44,6 @@ internal fun FreeNowSection(
 ) {
     var selectedEvent by remember { mutableStateOf<FreeNowEvent?>(null) }
     var previewMenu by remember { mutableStateOf(false) }
-    var showingSaved by rememberSaveable { mutableStateOf(false) }
-    var selectedFromSaved by remember { mutableStateOf(false) }
-    val saved = rememberSavedEvents()
 
     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
         ViewCard {
@@ -75,7 +68,7 @@ internal fun FreeNowSection(
             if (state.loading) ViewText("Finding suggestions…", color = viewMuted)
             state.error?.let { ViewText(it, color = viewForeground) }
             NearbyEventsControls(state, onConsent, onRetryConsent, onLocation, onFallback)
-            ShakeRefreshControl(state, active = !showingSaved && selectedEvent == null, onRefresh = onRefresh)
+            ShakeRefreshControl(state, active = selectedEvent == null, onRefresh = onRefresh)
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                 TextButton(onClick = onRefresh) {
                     Text("Refresh suggestions", color = viewAccent, fontFamily = viewNunito)
@@ -100,71 +93,50 @@ internal fun FreeNowSection(
                 }
             }
         }
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            listOf(false to "Suggested", true to "Saved (${saved.events.size})").forEach { (isSaved, label) ->
-                FilterChip(selected = showingSaved == isSaved, onClick = { showingSaved = isSaved },
-                    label = { Text(label, fontFamily = viewNunito) },
-                    colors = FilterChipDefaults.filterChipColors(containerColor = viewSecondary,
-                        labelColor = viewForeground, selectedContainerColor = viewAccent,
-                        selectedLabelColor = viewBackground))
-            }
-        }
-        saved.error?.let { ViewText(it, color = viewForeground) }
-        val visibleEvents = if (showingSaved) saved.events else state.result?.events.orEmpty()
-        if (showingSaved) {
-            ViewText("Saved on this device · Event details may change", color = viewMuted)
-            if (saved.busy) ViewText("Loading or saving events…", color = viewMuted)
-            else if (visibleEvents.isEmpty()) ViewText("Tap the star on a suggestion to save it here.", color = viewMuted)
-        } else if (!state.loading && visibleEvents.isEmpty()) {
-            ViewText(state.result?.message ?: "No events fit your free time right now.", color = viewMuted)
-        }
-                visibleEvents.forEach { event ->
+        state.result?.let { result ->
+                if (result.events.isEmpty()) {
+                    ViewText(result.message ?: "No events fit your free time right now.", color = viewMuted)
+                }
+                result.events.forEach { event ->
                     Box(Modifier.fillMaxWidth().clickable {
                         selectedEvent = event
-                        selectedFromSaved = showingSaved
-                        // Saved snapshots are not a new recommendation impression.
-                        if (!showingSaved) onOpenEvent(event.id)
+                        onOpenEvent(event.id)
                     }) {
                         ViewCard {
-                            Row {
-                                Column(Modifier.weight(1f)) { ViewText(event.title, heading = true) }
-                                val isSaved = saved.events.any { it.id == event.id }
-                                IconButton(onClick = { saved.toggle(event) }, enabled = !saved.busy,
-                                    modifier = Modifier.semantics {
-                                        contentDescription = if (isSaved) "Unsave ${event.title}" else "Save ${event.title}"
-                                    }) {
-                                    Text(if (isSaved) "★" else "☆", color = viewAccent, fontSize = 26.sp)
-                                }
-                            }
+                            ViewText(event.title, heading = true)
                             ViewText(event.groupName, color = viewAccent)
-                            ViewText("${campusTime(event.startsAt, showingSaved)} · ${event.buildingName ?: "Campus"}", color = viewMuted)
+                            ViewText("${campusTime(event.startsAt)} · ${event.buildingName ?: "Campus"}", color = viewMuted)
                             event.walkingMinutes?.let { ViewText("About $it min walk", color = viewMuted) }
                             event.reasons.firstOrNull()?.let { ViewText(it, color = viewForeground) }
                         }
                     }
                 }
+            }
         state.openError?.let { ViewText(it, color = viewMuted) }
     }
 
     selectedEvent?.let { event ->
         AlertDialog(
+            containerColor = viewBackground,
+            titleContentColor = viewForeground,
+            textContentColor = viewForeground,
             onDismissRequest = { selectedEvent = null },
             title = { ViewText(event.title, heading = true) },
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     ViewText(event.groupName, color = viewAccent)
-                    ViewText("${campusTime(event.startsAt, selectedFromSaved)} · ${event.buildingName ?: "Campus"}")
+                    ViewText("${campusTime(event.startsAt)} · ${event.buildingName ?: "Campus"}")
                     event.description?.let { ViewText(it) }
                 }
             },
             confirmButton = {
-                TextButton(onClick = { selectedEvent = null }) { Text("Close") }
+                TextButton(onClick = { selectedEvent = null }) { Text("Close", color = viewAccent) }
             },
         )
     }
 }
 
-private fun campusTime(timestamp: String?, includeDate: Boolean = false): String {
+private fun campusTime(timestamp: String?): String {
     if (timestamp == null) return "later today"
     return runCatching {
         val input = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ssXXX", Locale.US).apply {
@@ -172,7 +144,7 @@ private fun campusTime(timestamp: String?, includeDate: Boolean = false): String
         }
         val normalized = timestamp.replace(Regex("\\.\\d+(?=(Z|[+-]\\d{2}:\\d{2})$)"), "")
         val date = requireNotNull(input.parse(normalized))
-        SimpleDateFormat(if (includeDate) "MMM d, yyyy · h:mm a" else "EEE h:mm a", Locale.US).apply {
+        SimpleDateFormat("EEE h:mm a", Locale.US).apply {
             timeZone = TimeZone.getTimeZone("America/Bogota")
         }.format(date)
     }.getOrDefault(timestamp)

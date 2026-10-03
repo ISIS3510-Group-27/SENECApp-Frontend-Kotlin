@@ -112,7 +112,9 @@ fun DiscoverScreen(
         items = previewOrganizations,
         categories = previewOrganizations.map { it.categorySlug to it.category },
     ),
-    onSearch: (String, String?) -> Unit = { _, _ -> },
+    onSearch: (String, String?, Boolean) -> Unit = { _, _, _ -> },
+    onOpenOrganization: (Int, Boolean) -> Unit = { _, _ -> },
+    onCloseOrganization: () -> Unit = {},
     recommendationsState: GroupRecommendationsUiState = GroupRecommendationsUiState(loading = false),
     onLoadRecommendations: () -> Unit = {},
     onOpenRecommendedGroup: (Int) -> Unit = {},
@@ -122,12 +124,16 @@ fun DiscoverScreen(
     var query by rememberSaveable { mutableStateOf("") }
     var category by rememberSaveable { mutableStateOf<String?>(null) }
 
-    LaunchedEffect(query, category) {
+    var upcomingOnly by rememberSaveable { mutableStateOf(false) }
+    var selectedOrganization by remember { mutableStateOf<Organization?>(null) }
+    val fromSearch = organizationsState.searchFiltered
+
+    LaunchedEffect(query, category, upcomingOnly) {
         delay(350)
-        onSearch(query, category)
+        onSearch(query, category, upcomingOnly)
     }
-    LaunchedEffect(query.isBlank() && category == null) {
-        if (query.isBlank() && category == null) onLoadRecommendations()
+    LaunchedEffect(query.isBlank() && category == null && !upcomingOnly) {
+        if (query.isBlank() && category == null && !upcomingOnly) onLoadRecommendations()
     }
 
     Column(
@@ -137,14 +143,14 @@ fun DiscoverScreen(
             Header(palette)
             SearchField(query = query, onQueryChange = { query = it }, palette = palette)
 
-            if (query.isBlank() && category == null) {
+            if (query.isBlank() && category == null && !upcomingOnly) {
                 GroupRecommendationsSection(
                     recommendationsState, palette, onLoadRecommendations,
                     onOpenRecommendedGroup, onJoinRecommendedGroup,
                 )
             }
 
-            if (query.isBlank() && category == null && organizationsState.items.isNotEmpty()) {
+            if (query.isBlank() && category == null && !upcomingOnly && organizationsState.items.isNotEmpty()) {
                 SectionLabel("FEATURED", palette, Modifier.padding(start = 24.dp, top = 20.dp, bottom = 8.dp))
                 Row(
                     modifier = Modifier.horizontalScroll(rememberScrollState()),
@@ -164,7 +170,12 @@ fun DiscoverScreen(
                 (listOf(null to "All") + organizationsState.categories).forEach { (slug, label) ->
                     CategoryChip(label, selected = slug == category, palette = palette) { category = slug }
                 }
+
                 Spacer(Modifier.width(16.dp))
+            }
+
+            Row(Modifier.padding(start = 24.dp, bottom = 12.dp)) {
+                CategoryChip("Upcoming events", selected = upcomingOnly, palette = palette) { upcomingOnly = !upcomingOnly }
             }
 
             SectionLabel(
@@ -180,15 +191,36 @@ fun DiscoverScreen(
                 } else if (organizationsState.error != null) {
                     Text(organizationsState.error, color = palette.foreground, fontFamily = nunito, fontSize = 14.sp)
                     Text("Retry", color = palette.accent, fontFamily = nunito, fontSize = 14.sp,
-                        modifier = Modifier.clickable { onSearch(query, category) })
+                        modifier = Modifier.clickable { onSearch(query, category, upcomingOnly) })
                 } else if (organizationsState.items.isEmpty()) {
                     Text("No organizations match your search.", color = palette.muted, fontFamily = nunito, fontSize = 14.sp)
                 }
                 if (!organizationsState.loading && organizationsState.error == null) {
-                    organizationsState.items.forEach { OrganizationCard(it, palette) }
+                    organizationsState.items.forEach { organization ->
+                        OrganizationCard(organization, palette) {
+                            selectedOrganization = organization
+                            onOpenOrganization(organization.id, fromSearch)
+                        }
+                    }
                 }
             }
         }
+    selectedOrganization?.let { organization ->
+        fun closeDetail() { selectedOrganization = null; onCloseOrganization() }
+        AlertDialog(onDismissRequest = { closeDetail() },
+            title = { Text(organization.name, fontFamily = bricolage) },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text(organization.category, fontFamily = nunito)
+                    if (organizationsState.detailLoading) Text("Loading details…", fontFamily = nunito)
+                    organizationsState.detailDescription?.let { Text(it, fontFamily = nunito) }
+                    organizationsState.detailError?.let {
+                        Text(it, fontFamily = nunito)
+                        TextButton(onClick = { onOpenOrganization(organization.id, fromSearch) }) { Text("Retry") }
+                    }
+                }
+            }, confirmButton = { TextButton(onClick = { closeDetail() }) { Text("Close") } })
+    }
         if (showBottomNavigation) BottomNavigation(palette)
     }
 }
@@ -361,11 +393,11 @@ private fun CategoryChip(label: String, selected: Boolean, palette: DiscoverPale
 }
 
 @Composable
-private fun OrganizationCard(organization: Organization, palette: DiscoverPalette) {
+private fun OrganizationCard(organization: Organization, palette: DiscoverPalette, onOpen: () -> Unit) {
     val organizationColor = organization.displayColor()
     Row(
         modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(palette.card)
-            .border(1.dp, palette.border, RoundedCornerShape(16.dp)).padding(14.dp),
+            .border(1.dp, palette.border, RoundedCornerShape(16.dp)).clickable(onClick = onOpen).padding(14.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         OrganizationArtwork(organization, Modifier.size(62.dp).clip(RoundedCornerShape(14.dp)))

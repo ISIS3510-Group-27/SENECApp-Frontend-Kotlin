@@ -16,4 +16,8 @@
 - Location aware nearby event suggestions (Context Aware) — Daniel Vergara
 - Personalized group recommendations (Smart Feature) — Camilo Castilla
 - Shake to refresh event suggestions (Accelerometer Sensor) — Daniel Vergara
-- Saved event favorites on this device (Local Storage) — Daniel Vergara
+- Live upcoming events and membership filter (External Services) — Daniel Vergara
+- Search filter and organization-open tracking for BQ12 (Type 2 BQ) — Daniel Vergara
+- On-demand profile group recommendation (Smart Feature, existing backend model) — Daniel Vergara
+
+Implementation and demo steps: [Feature notes](docs/required-features.md).
