@@ -103,8 +103,6 @@ private val previewOrganizations = listOf(
 fun DiscoverScreen(
     showBottomNavigation: Boolean = true,
     highContrast: Boolean = false,
-    ambientLux: Float? = null,
-    sensorAvailable: Boolean = true,
     organizationsState: OrganizationsUiState = OrganizationsUiState(
         loading = false,
         items = previewOrganizations,
@@ -126,7 +124,6 @@ fun DiscoverScreen(
     ) {
         Column(modifier = Modifier.weight(1f).verticalScroll(rememberScrollState())) {
             Header(palette)
-            ContrastStatus(palette, ambientLux, sensorAvailable)
             SearchField(query = query, onQueryChange = { query = it }, palette = palette)
 
             if (query.isBlank() && category == null && organizationsState.items.isNotEmpty()) {
@@ -201,21 +198,6 @@ private fun Header(palette: DiscoverPalette) {
             Icon(painterResource(R.drawable.ic_notifications), contentDescription = "Notifications", tint = palette.foreground, modifier = Modifier.size(22.dp))
         }
     }
-}
-
-@Composable
-private fun ContrastStatus(palette: DiscoverPalette, ambientLux: Float?, sensorAvailable: Boolean) {
-    val label = when {
-        !sensorAvailable -> "Automatic contrast unavailable on this device"
-        ambientLux == null -> "Reading ambient light..."
-        palette.highContrast -> "Ambient light ${ambientLux.toInt()} lx · High contrast"
-        else -> "Ambient light ${ambientLux.toInt()} lx · Standard contrast"
-    }
-    Text(
-        label, color = if (palette.highContrast) palette.accent else palette.muted,
-        fontFamily = nunito, fontSize = 11.sp, fontWeight = FontWeight.Bold,
-        modifier = Modifier.padding(start = 24.dp, end = 24.dp, bottom = 12.dp),
-    )
 }
 
 @Composable
@@ -369,11 +351,11 @@ fun AppBottomNavigation(selectedTab: String, highContrast: Boolean, onNavigate: 
 @Preview(showBackground = true, widthDp = 393, heightDp = 852)
 @Composable
 private fun DiscoverStandardPreview() {
-    DiscoverScreen(ambientLux = 100f)
+    DiscoverScreen()
 }
 
 @Preview(showBackground = true, widthDp = 393, heightDp = 852)
 @Composable
 private fun DiscoverHighContrastPreview() {
-    DiscoverScreen(highContrast = true, ambientLux = 750f)
+    DiscoverScreen(highContrast = true)
 }
