@@ -1,5 +1,6 @@
 package com.senecapp.ui
 
+import android.util.Log
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
@@ -34,10 +35,11 @@ class OrganizationsViewModel : ViewModel() {
                 val categories = if (query.isBlank() && categorySlug == null) {
                     items.map { it.categorySlug to it.category }.distinctBy { it.first }
                 } else state.categories
-                state = OrganizationsUiState(items = items, categories = categories)
+                state = OrganizationsUiState(loading = false, items = items, categories = categories)
             } catch (cancelled: CancellationException) {
                 throw cancelled
-            } catch (_: IOException) {
+            } catch (failure: IOException) {
+                Log.e("Organizations", "Organization request failed", failure)
                 state = state.copy(loading = false, error = "Cannot reach the backend. Start it and tap Retry.")
             } catch (failure: Exception) {
                 state = state.copy(loading = false, error = failure.message ?: "Could not load organizations")

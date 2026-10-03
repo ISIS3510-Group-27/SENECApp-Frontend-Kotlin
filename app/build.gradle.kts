@@ -22,7 +22,9 @@ android {
 
     buildTypes {
         getByName("debug") {
-            buildConfigField("String", "API_BASE_URL", "\"http://10.0.2.2:8000/api/v1\"")
+            val apiBaseUrl = providers.gradleProperty("apiBaseUrl")
+                .getOrElse("http://10.0.2.2:8000/api/v1")
+            buildConfigField("String", "API_BASE_URL", "\"$apiBaseUrl\"")
             buildConfigField("String", "DEV_TOKEN", "\"dev:s.arango@uniandes.edu.co\"")
         }
         getByName("release") {
