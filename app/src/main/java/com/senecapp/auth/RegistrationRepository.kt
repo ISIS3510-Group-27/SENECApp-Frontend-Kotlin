@@ -1,15 +1,11 @@
 package com.senecapp.auth
 
 import android.content.Context
-import com.google.android.gms.tasks.Task
-import com.google.firebase.FirebaseApp
-import com.google.firebase.auth.FirebaseAuth
-import kotlinx.coroutines.suspendCancellableCoroutine
 
 internal data class RegistrationAccount(val email: String, val verified: Boolean)
 
 internal class RegistrationRepository(context: Context) {
-    private val auth = FirebaseApp.initializeApp(context.applicationContext)?.let { FirebaseAuth.getInstance(it) }
+    private val auth = defaultFirebaseAuth(context)
     val configured: Boolean get() = auth != null
 
     fun account(): RegistrationAccount? = auth?.currentUser?.let {
@@ -29,7 +25,11 @@ internal class RegistrationRepository(context: Context) {
     suspend fun checkVerification(): Boolean {
         val firebaseAuth = requireNotNull(auth) { "Registration is unavailable in this build." }
         val user = requireNotNull(firebaseAuth.currentUser) { "Create an account first." }
-        user.reload().awaitResult()
+        try { user.reload().awaitResult()
+        } catch (failure: Exception) {
+            if (invalidFirebaseSession(failure)) firebaseAuth.signOut()
+            throw failure
+        }
         val verified = firebaseAuth.currentUser?.isEmailVerified == true
         // Refresh email_verified in the SDK's token for the later login integration.
         if (verified) firebaseAuth.currentUser?.getIdToken(true)?.awaitResult()
@@ -37,13 +37,4 @@ internal class RegistrationRepository(context: Context) {
     }
 
     fun useAnotherAccount() { auth?.signOut() }
-}
-
-private suspend fun <T> Task<T>.awaitResult(): T = suspendCancellableCoroutine { continuation ->
-    addOnCompleteListener { task ->
-        if (continuation.isActive) {
-            if (task.isSuccessful) continuation.resumeWith(Result.success(task.result))
-            else continuation.resumeWith(Result.failure(task.exception ?: IllegalStateException("Request failed.")))
-        }
-    }
 }
