@@ -49,8 +49,6 @@ class MainActivity : ComponentActivity(), SensorEventListener {
                         else -> DiscoverScreen(
                             showBottomNavigation = false,
                             highContrast = highContrast.value,
-                            ambientLux = ambientLux.value,
-                            sensorAvailable = sensorAvailable.value,
                             organizationsState = organizationsViewModel.state,
                             onSearch = organizationsViewModel::search,
                         )
