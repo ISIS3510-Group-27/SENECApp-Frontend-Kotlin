@@ -1,7 +1,5 @@
 # SENECApp
 
-Android app built with Jetpack Compose.
-
 ## Views
 
 - Discover — Camilo Castilla
@@ -17,8 +15,5 @@ Android app built with Jetpack Compose.
 - BQ3 interaction tracking (Type 2 BQ) — Camilo Castilla
 - Location aware nearby event suggestions (Context Aware) — Daniel Vergara
 - Personalized group recommendations (Smart Feature) — Camilo Castilla
-- BQ2 recommendation-to-join tracking (Type 2 BQ) — Camilo Castilla
 - Shake to refresh event suggestions (Accelerometer Sensor) — Daniel Vergara
 - Saved event favorites on this device (Local Storage) — Daniel Vergara
-
-
