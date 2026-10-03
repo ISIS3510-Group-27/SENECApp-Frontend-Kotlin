@@ -23,6 +23,7 @@ import com.senecapp.ui.EventsScreen
 import com.senecapp.ui.FreeNowViewModel
 import com.senecapp.ui.ProfileScreen
 import com.senecapp.ui.AppBottomNavigation
+import com.senecapp.ui.LocalBackendAccess
 import androidx.compose.runtime.mutableStateOf
 import androidx.lifecycle.ViewModelProvider
 import com.senecapp.sensors.AdaptiveContrastPolicy
@@ -41,6 +42,7 @@ class MainActivity : ComponentActivity(), SensorEventListener {
         super.onCreate(savedInstanceState)
 
         setContent {
+            LocalBackendAccess {
             var selectedTab by rememberSaveable { mutableStateOf("Discover") }
             BackHandler(enabled = selectedTab != "Discover") { selectedTab = "Discover" }
             Column(Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.navigationBars)) {
@@ -51,6 +53,10 @@ class MainActivity : ComponentActivity(), SensorEventListener {
                             onLoadFreeNow = freeNowViewModel::load,
                             onDemoNoon = freeNowViewModel::loadDemoNoon,
                             onOpenSuggestedEvent = freeNowViewModel::openEvent,
+                            onLocationConsent = freeNowViewModel::setLocationConsent,
+                            onRetryLocationConsent = freeNowViewModel::refreshConsent,
+                            onUseLocation = freeNowViewModel::useLocation,
+                            onLocationUnavailable = freeNowViewModel::locationUnavailable,
                         )
                         "Profile" -> ProfileScreen()
                         else -> DiscoverScreen(
@@ -62,6 +68,7 @@ class MainActivity : ComponentActivity(), SensorEventListener {
                     }
                 }
                 AppBottomNavigation(selectedTab, highContrast.value) { selectedTab = it }
+            }
             }
         }
     }

@@ -19,6 +19,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.senecapp.BuildConfig
 import com.senecapp.data.FreeNowEvent
+import com.senecapp.data.EventCoordinates
 import java.text.SimpleDateFormat
 import java.util.Locale
 import java.util.TimeZone
@@ -29,12 +30,17 @@ internal fun FreeNowSection(
     onRefresh: () -> Unit,
     onDemoNoon: () -> Unit,
     onOpenEvent: (Int) -> Unit,
+    onConsent: (Boolean) -> Unit,
+    onRetryConsent: () -> Unit,
+    onLocation: (EventCoordinates?, Boolean) -> Unit,
+    onFallback: (String) -> Unit,
 ) {
     var selectedEvent by remember { mutableStateOf<FreeNowEvent?>(null) }
 
     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
         ViewText("FREE RIGHT NOW", color = viewAccent)
         ViewText("Event suggestions based on your class schedule and current time", color = viewMuted)
+        NearbyEventsControls(state, onConsent, onRetryConsent, onLocation, onFallback)
         Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
             Text("Refresh now", color = viewAccent, fontFamily = viewNunito,
                 modifier = Modifier.clickable(onClick = onRefresh).padding(vertical = 4.dp))
@@ -45,10 +51,14 @@ internal fun FreeNowSection(
         }
         if (state.demoMode) ViewText("Showing suggestions for noon today", color = viewMuted)
 
-        when {
-            state.loading -> ViewText("Finding a free block...", color = viewMuted)
-            state.error != null -> ViewText(state.error, color = viewForeground)
-            else -> state.result?.let { result ->
+        if (state.loading) ViewText("Finding a free block...", color = viewMuted)
+        state.error?.let { ViewText(it, color = viewForeground) }
+        state.result?.let { result ->
+                ViewText(when (result.locationSource) {
+                    "gps" -> "Location source: GPS"
+                    "schedule" -> "Location source: schedule building"
+                    else -> "Location source: unavailable"
+                }, color = viewAccent)
                 if (result.freeMinutes != null) {
                     ViewText("Free for ${result.freeMinutes} min · until ${campusTime(result.freeEndsAt)}")
                 }
@@ -76,7 +86,6 @@ internal fun FreeNowSection(
                     }
                 }
             }
-        }
         state.openError?.let { ViewText(it, color = viewMuted) }
     }
 
