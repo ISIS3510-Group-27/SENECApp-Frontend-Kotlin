@@ -10,8 +10,13 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 
 @Composable
-fun ProfileScreen() {
-    DemoView("Profile") {
+fun ProfileScreen(
+    recommendationsState: GroupRecommendationsUiState = GroupRecommendationsUiState(loading = false),
+    onLoadRecommendations: () -> Unit = {},
+    onOpenRecommendedGroup: (Int) -> Unit = {},
+    onJoinRecommendedGroup: (Int) -> Unit = {},
+) {
+    DemoView("Profile", showSampleLabel = false) {
         ViewCard {
             Box(Modifier.size(66.dp).background(viewPrimary, RoundedCornerShape(16.dp)),
                 contentAlignment = Alignment.Center) { ViewText("DV", heading = true) }
@@ -36,6 +41,8 @@ fun ProfileScreen() {
                 }
             }
         }
+        ProfileRecommendationSection(recommendationsState, onLoadRecommendations,
+            onOpenRecommendedGroup, onJoinRecommendedGroup)
         ViewText("ACCOUNT · PREVIEW", color = viewMuted)
         ViewCard {
             listOf("Notifications" to "Event alerts",

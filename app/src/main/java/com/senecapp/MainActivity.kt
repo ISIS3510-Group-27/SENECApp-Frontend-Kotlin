@@ -30,11 +30,17 @@ import com.senecapp.sensors.AdaptiveContrastPolicy
 import com.senecapp.ui.DiscoverScreen
 import com.senecapp.ui.GroupRecommendationsViewModel
 import com.senecapp.ui.OrganizationsViewModel
+import com.senecapp.ui.CampusEventsViewModel
 
 class MainActivity : ComponentActivity(), SensorEventListener {
     private val organizationsViewModel by lazy { ViewModelProvider(this)[OrganizationsViewModel::class.java] }
     private val recommendationsViewModel by lazy { ViewModelProvider(this)[GroupRecommendationsViewModel::class.java] }
     private val freeNowViewModel by lazy { ViewModelProvider(this)[FreeNowViewModel::class.java] }
+    private val campusEventsViewModel by lazy { ViewModelProvider(this)[CampusEventsViewModel::class.java] }
+    // Keep request attribution independent from the Discover recommendation list.
+    private val profileRecommendationsViewModel by lazy {
+        ViewModelProvider(this)["profileRecommendations", GroupRecommendationsViewModel::class.java]
+    }
     private val sensorManager by lazy { getSystemService(Context.SENSOR_SERVICE) as SensorManager }
     private val lightSensor by lazy { sensorManager.getDefaultSensor(Sensor.TYPE_LIGHT) }
     private val contrastPolicy = AdaptiveContrastPolicy()
@@ -59,13 +65,24 @@ class MainActivity : ComponentActivity(), SensorEventListener {
                             onRetryLocationConsent = freeNowViewModel::refreshConsent,
                             onUseLocation = freeNowViewModel::useLocation,
                             onLocationUnavailable = freeNowViewModel::locationUnavailable,
+                            campusEventsState = campusEventsViewModel.state,
+                            onLoadEvents = campusEventsViewModel::load,
+                            onOpenEvent = campusEventsViewModel::open,
+                            onCloseEvent = campusEventsViewModel::close,
                         )
-                        "Profile" -> ProfileScreen()
+                        "Profile" -> ProfileScreen(
+                            recommendationsState = profileRecommendationsViewModel.state,
+                            onLoadRecommendations = profileRecommendationsViewModel::load,
+                            onOpenRecommendedGroup = profileRecommendationsViewModel::openGroup,
+                            onJoinRecommendedGroup = profileRecommendationsViewModel::joinGroup,
+                        )
                         else -> DiscoverScreen(
                             showBottomNavigation = false,
                             highContrast = highContrast.value,
                             organizationsState = organizationsViewModel.state,
                             onSearch = organizationsViewModel::search,
+                            onOpenOrganization = organizationsViewModel::open,
+                            onCloseOrganization = organizationsViewModel::close,
                             recommendationsState = recommendationsViewModel.state,
                             onLoadRecommendations = recommendationsViewModel::load,
                             onOpenRecommendedGroup = recommendationsViewModel::openGroup,
