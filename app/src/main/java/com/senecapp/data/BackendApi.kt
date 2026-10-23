@@ -29,8 +29,9 @@ private class HttpApiTransport : ApiTransport {
             val connection = URL("${BuildConfig.API_BASE_URL}$path").openConnection() as HttpURLConnection
             try {
                 connection.requestMethod = method
-                connection.connectTimeout = 5_000
-                connection.readTimeout = 5_000
+                connection.connectTimeout = 15_000
+                connection.readTimeout = 15_000
+                connection.setRequestProperty("Accept", "application/json")
                 connection.setRequestProperty("Authorization", "Bearer $token")
                 connection.setRequestProperty("X-App", "kotlin")
                 connection.setRequestProperty("X-Session-Id", sessionFor(userId))

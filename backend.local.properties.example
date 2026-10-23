@@ -1,0 +1,6 @@
+# Optional: copy to backend.local.properties to override the AWS URL on this machine.
+# Include /api/v1. Gradle also accepts -PapiBaseUrl=... (highest priority).
+apiBaseUrl=https://35-170-175-16.sslip.io/api/v1
+
+# Local Android emulator backend (Firebase authentication is still required):
+# apiBaseUrl=http://10.0.2.2:8000/api/v1
