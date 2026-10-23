@@ -82,4 +82,22 @@ class AuthenticatedApiClientTest {
         assertEquals(1, requests)
         assertNull(tokens.invalidated)
     }
+
+    @Test fun coverUploadUsesExistingTokenRetryAndKeepsImageBytes() = runBlocking {
+        val tokens = Tokens()
+        val photo = byteArrayOf(1, 2, 3)
+        val sent = mutableListOf<String>()
+        val transport = object : ApiTransport {
+            override suspend fun execute(path: String, method: String, body: String?, token: String, userId: String): ApiResponse =
+                error("Photo must use multipart upload")
+            override suspend fun upload(path: String, bytes: ByteArray, token: String, userId: String): ApiResponse {
+                assertEquals("/groups/1/cover", path)
+                assertArrayEquals(photo, bytes)
+                sent += token
+                return ApiResponse(if (sent.size == 1) 401 else 200, "uploaded")
+            }
+        }
+        assertEquals("uploaded", AuthenticatedApiClient(tokens, transport).request("/groups/1/cover", "POST", image = photo))
+        assertEquals(listOf("current", "renewed"), sent)
+    }
 }

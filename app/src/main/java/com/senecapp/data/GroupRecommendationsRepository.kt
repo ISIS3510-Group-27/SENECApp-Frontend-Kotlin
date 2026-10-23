@@ -8,7 +8,7 @@ class GroupRecommendationsRepository {
     private val api = backendClient()
 
     suspend fun load(): GroupRecommendations = withContext(Dispatchers.IO) {
-        val root = JSONObject(api.request("/recommendations/groups?limit=3"))
+        val root = JSONObject(api.request("/recommendations/groups?limit=10"))
         val items = root.getJSONArray("items")
         GroupRecommendations(requestId = root.getString("request_id"), items = List(items.length()) { index ->
             val item = items.getJSONObject(index)
@@ -17,7 +17,8 @@ class GroupRecommendationsRepository {
             GroupRecommendation(id = group.getInt("id"), name = group.getString("name"),
                 category = group.getJSONObject("category").getString("label"), description = group.getString("description"),
                 memberCount = group.getInt("member_count"), reasons = List(reasons.length()) { reasons.getString(it) },
-                isMember = group.getBoolean("is_member"))
+                isMember = group.getBoolean("is_member"), color = group.textOrNull("color"),
+                imageUrl = group.textOrNull("image_url"), verified = group.optBoolean("verified"))
         })
     }
 

@@ -9,5 +9,8 @@ data class Organization(
     val color: String?,
     val hasUpcomingEvent: Boolean,
     val isSaved: Boolean = false,
-
+    val imageUrl: String? = null,
+    val verified: Boolean = false,
+    val nextEventTitle: String? = null,
+    val nextEventStartsAt: String? = null,
 )

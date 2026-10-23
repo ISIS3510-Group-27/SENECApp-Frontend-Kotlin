@@ -58,6 +58,9 @@ fun DiscoverScreen(
     recommendationsState: GroupRecommendationsUiState = GroupRecommendationsUiState(loading = false),
     onLoadRecommendations: () -> Unit = {}, onOpenRecommendedGroup: (Int) -> Unit = {},
     onJoinRecommendedGroup: (Int) -> Unit = {},
+    externalDetails: Boolean = false,
+    unreadCount: Int = 0, onNotifications: () -> Unit = {},
+    onFilters: () -> Unit = {}, onSeeAll: () -> Unit = {}, onCreateGroup: () -> Unit = {},
 ) {
     val palette = if (highContrast) brightLightPalette else standardPalette
     var query by rememberSaveable { mutableStateOf("") }
@@ -67,23 +70,27 @@ fun DiscoverScreen(
     val fromSearch = organizationsState.searchFiltered
     LaunchedEffect(query, category, upcomingOnly) { delay(350); onSearch(query, category, upcomingOnly) }
     LaunchedEffect(query.isBlank() && category == null && !upcomingOnly) {
-        if (query.isBlank() && category == null && !upcomingOnly) onLoadRecommendations()
+        if (query.isBlank() && category == null && !upcomingOnly && recommendationsState.result == null) onLoadRecommendations()
     }
     Column(Modifier.fillMaxSize().background(palette.background).windowInsetsPadding(WindowInsets.safeDrawing)) {
         Column(Modifier.weight(1f).verticalScroll(rememberScrollState()).padding(bottom = 32.dp)) {
-            Header(palette)
+            Header(palette, unreadCount, onNotifications)
             SearchField(query, { query = it }, palette)
+            Row(Modifier.fillMaxWidth().padding(horizontal = 24.dp), horizontalArrangement = Arrangement.SpaceBetween) {
+                TextButton(onClick = onFilters) { Text(if (organizationsState.filters.active) "Filters · Active" else "Filters", color = palette.accent) }
+                TextButton(onClick = onCreateGroup) { Text("+ New RSO", color = palette.accent) }
+            }
             if (query.isBlank() && category == null && !upcomingOnly) {
                 GroupRecommendationsSection(recommendationsState, palette, onLoadRecommendations,
-                    onOpenRecommendedGroup, onJoinRecommendedGroup)
+                    onOpenRecommendedGroup, onJoinRecommendedGroup, externalDetails, onSeeAll)
                 if (recommendationsState.result?.items.isNullOrEmpty() && organizationsState.items.isNotEmpty()) {
                     FeedLabel("FEATURED", palette)
                     Row(Modifier.horizontalScroll(rememberScrollState()).padding(horizontal = 24.dp),
                         horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                         organizationsState.items.take(5).forEach { organization ->
                             CoverCard(organization.name, organization.category, organization.members,
-                                organizationColor(organization.color), null, palette) {
-                                selectedOrganization = organization
+                                organizationColor(organization.color), null, palette, organization.imageUrl, organization.verified) {
+                                if (!externalDetails) selectedOrganization = organization
                                 onOpenOrganization(organization.id, fromSearch)
                             }
                         }
@@ -100,6 +107,7 @@ fun DiscoverScreen(
             FeedLabel(if (organizationsState.loading) "ORGANIZATIONS"
                 else "${organizationsState.items.size} ORGANIZATIONS", palette)
             Column(Modifier.padding(horizontal = 24.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                organizationsState.saveError?.let { InfoNotice(it, error = true) }
                 when {
                     organizationsState.loading -> CircularProgressIndicator(Modifier.align(Alignment.CenterHorizontally)
                         .padding(24.dp).size(24.dp), color = palette.accent, strokeWidth = 2.dp)
@@ -114,7 +122,8 @@ fun DiscoverScreen(
                     else -> organizationsState.items.forEach { organization ->
                         OrganizationCard(organization, palette, organizationsState.savingId == null,
                             onSave = { onToggleSave(organization.id) }) {
-                            selectedOrganization = organization; onOpenOrganization(organization.id, fromSearch)
+                            if (!externalDetails) selectedOrganization = organization
+                            onOpenOrganization(organization.id, fromSearch)
                         }
                     }
                 }
@@ -142,11 +151,15 @@ fun DiscoverScreen(
 
 @Composable
 private fun GroupRecommendationsSection(state: GroupRecommendationsUiState, palette: DiscoverPalette,
-    onRetry: () -> Unit, onOpenGroup: (Int) -> Unit, onJoinGroup: (Int) -> Unit) {
+    onRetry: () -> Unit, onOpenGroup: (Int) -> Unit, onJoinGroup: (Int) -> Unit,
+    externalDetails: Boolean = false, onSeeAll: () -> Unit = {}) {
     var selected by remember { mutableStateOf<GroupRecommendation?>(null) }
     val groups = state.result?.items.orEmpty()
     if (state.loading || state.error != null || groups.isNotEmpty()) {
         FeedLabel("RECOMMENDED FOR YOU", palette)
+        if (groups.isNotEmpty()) TextButton(onClick = onSeeAll, modifier = Modifier.padding(horizontal = 16.dp)) {
+            Text("See all →", color = palette.accent)
+        }
         when {
             state.loading -> Text("Finding groups for you…", color = palette.muted, fontFamily = viewNunito,
                 fontSize = 13.sp, modifier = Modifier.padding(horizontal = 24.dp))
@@ -156,9 +169,12 @@ private fun GroupRecommendationsSection(state: GroupRecommendationsUiState, pale
             }
             else -> Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(horizontal = 24.dp),
                 horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                groups.forEach { group ->
-                    CoverCard(group.name, group.category, group.memberCount, categoryColor(group.category),
-                        group.reasons.firstOrNull(), palette) { selected = group; onOpenGroup(group.id) }
+                groups.take(5).forEach { group ->
+                    CoverCard(group.name, group.category, group.memberCount, organizationColor(group.color),
+                        group.reasons.firstOrNull(), palette, group.imageUrl, group.verified) {
+                        if (!externalDetails) selected = group
+                        onOpenGroup(group.id)
+                    }
                 }
             }
         }
@@ -177,7 +193,7 @@ private fun GroupRecommendationsSection(state: GroupRecommendationsUiState, pale
 }
 
 @Composable
-private fun Header(palette: DiscoverPalette) {
+private fun Header(palette: DiscoverPalette, unread: Int = 0, onNotifications: () -> Unit = {}) {
     Row(Modifier.fillMaxWidth().padding(start = 24.dp, end = 24.dp, top = 8.dp, bottom = 20.dp),
         verticalAlignment = Alignment.CenterVertically) {
         Image(painterResource(R.drawable.senecapp_logo), contentDescription = "SENECApp",
@@ -188,11 +204,12 @@ private fun Header(palette: DiscoverPalette) {
             Text("SENECApp", color = palette.foreground, fontFamily = viewBricolage,
                 fontSize = 24.sp, fontWeight = FontWeight.ExtraBold, lineHeight = 28.sp)
         }
-        // Notification data and navigation are not implemented in Kotlin yet.
-        Box(Modifier.size(40.dp).clip(RoundedCornerShape(16.dp)).background(palette.secondary),
+        Box(Modifier.size(40.dp).clip(RoundedCornerShape(16.dp)).background(palette.secondary).clickable(onClick = onNotifications),
             contentAlignment = Alignment.Center) {
             Icon(painterResource(R.drawable.ic_notifications), contentDescription = "Notifications",
                 tint = palette.foreground, modifier = Modifier.size(18.dp))
+            if (unread > 0) Text(if (unread > 9) "9+" else "$unread", color = Color.White,
+                fontSize = 9.sp, modifier = Modifier.align(Alignment.TopEnd).background(viewPrimary, RoundedCornerShape(50)).padding(3.dp))
         }
     }
 }
@@ -219,12 +236,14 @@ private fun SearchField(query: String, onQueryChange: (String) -> Unit, palette:
 
 @Composable
 private fun CoverCard(name: String, category: String, members: Int, color: Color, reason: String?,
-                      palette: DiscoverPalette, onClick: () -> Unit) {
+                      palette: DiscoverPalette, imageUrl: String? = null, verified: Boolean = false, onClick: () -> Unit) {
     Box(Modifier.width(208.dp).height(144.dp).clip(RoundedCornerShape(24.dp))
         .background(palette.card).clickable(onClick = onClick)) {
-        OrganizationImage(name, category, color, Modifier.fillMaxSize())
+        OrganizationImage(name, category, color, Modifier.fillMaxSize(), imageUrl)
         Box(Modifier.fillMaxSize().background(Brush.verticalGradient(listOf(Color.Transparent,
             if (palette.highContrast) Color.Black else color.copy(alpha = .8f)))))
+        if (verified) Text("✓ Official", color = Color.White, fontSize = 10.sp,
+            modifier = Modifier.align(Alignment.TopEnd).padding(8.dp).background(Color.Black.copy(alpha = .6f), RoundedCornerShape(8.dp)).padding(6.dp))
         Column(Modifier.align(Alignment.BottomStart).padding(12.dp)) {
             Text(reason ?: category.uppercase(), color = if (reason != null) Color.White.copy(alpha = .9f) else palette.accent,
                 fontFamily = viewNunito, fontSize = 11.sp, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis)
@@ -242,15 +261,15 @@ private fun OrganizationCard(group: Organization, palette: DiscoverPalette, canS
     Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(palette.card)
         .border(1.dp, palette.border, RoundedCornerShape(16.dp)).clickable(onClick = onOpen).padding(16.dp),
         verticalAlignment = Alignment.CenterVertically) {
-        OrganizationImage(group.name, group.category, color, Modifier.size(56.dp).clip(RoundedCornerShape(16.dp)))
+        OrganizationImage(group.name, group.category, color, Modifier.size(56.dp).clip(RoundedCornerShape(16.dp)), group.imageUrl)
         Column(Modifier.weight(1f).padding(start = 14.dp, end = 8.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-            Text(group.name, color = palette.foreground, fontFamily = viewBricolage, fontSize = 14.sp,
+            Text(group.name + if (group.verified) " ✓" else "", color = palette.foreground, fontFamily = viewBricolage, fontSize = 14.sp,
                 fontWeight = FontWeight.ExtraBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
             Text("${group.members} members · ${group.category}", color = palette.muted, fontFamily = viewNunito,
                 fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
             if (group.hasUpcomingEvent) {
                 Spacer(Modifier.height(4.dp))
-                StyleChip("Upcoming events", if (palette.highContrast) palette.accent else color,
+                StyleChip(group.nextEventStartsAt?.let { com.senecapp.data.eventLabel(it) } ?: "Upcoming events", if (palette.highContrast) palette.accent else color,
                     if (palette.highContrast) palette.secondary else color.copy(alpha = .13f))
             }
         }

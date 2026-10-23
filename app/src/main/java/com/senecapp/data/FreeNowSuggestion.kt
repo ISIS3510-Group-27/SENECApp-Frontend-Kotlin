@@ -9,6 +9,7 @@ data class FreeNowEvent(
     val buildingName: String?,
     val walkingMinutes: Int?,
     val reasons: List<String>,
+    val color: String? = null,
 )
 
 data class FreeNowSuggestion(

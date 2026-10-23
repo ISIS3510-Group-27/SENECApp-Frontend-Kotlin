@@ -78,7 +78,8 @@ class MainActivity : ComponentActivity(), SensorEventListener {
                                 onAnotherAccount = ::leaveRegistration, onClose = ::leaveRegistration)
                         } else SignInScreen(session, sessionViewModel::signIn, sessionViewModel::resetPassword,
                             onCreateAccount = { registrationViewModel.clear(); registering = true },
-                            onClearMessage = sessionViewModel::clearMessage)
+                            onClearMessage = sessionViewModel::clearMessage,
+                            onMicrosoft = { sessionViewModel.signInMicrosoft(this@MainActivity) })
                     }
                     SessionPhase.CHECKING -> SessionStatus("Checking your session")
                     SessionPhase.SESSION_ERROR -> SessionStatus("Check your session", session.error,
@@ -105,7 +106,8 @@ class MainActivity : ComponentActivity(), SensorEventListener {
 
     override fun onResume() {
         super.onResume()
-        if (sessionViewModel.state.phase in setOf(SessionPhase.SIGNED_IN, SessionPhase.VERIFICATION,
+        // Camera, gallery and QR scanning return here. Keep the current screen and form intact.
+        if (sessionViewModel.state.phase in setOf(SessionPhase.VERIFICATION,
                 SessionPhase.PROFILE_ERROR, SessionPhase.SESSION_ERROR) && !registrationViewModel.state.busy) {
             sessionViewModel.checkSession()
         }
@@ -139,66 +141,10 @@ private fun SessionStatus(title: String, error: String? = null, onRetry: (() -> 
 private fun ProtectedContent(uid: String, profile: UserProfile, highContrast: Boolean, profileLoading: Boolean,
                              profileError: String?, onRefreshProfile: () -> Unit, onSignOut: () -> Unit) {
     val application = LocalContext.current.applicationContext as Application
-    // This store is disposed on logout or session checks, cancelling requests and clearing user data.
+    // Requests and account-specific screen state are cleared when this signed-in session closes.
     val owner = remember(uid) { object : ViewModelStoreOwner { override val viewModelStore = ViewModelStore() } }
     DisposableEffect(owner) { onDispose { owner.viewModelStore.clear() } }
     // AndroidViewModelFactory also builds the plain ViewModels; MyRSOsViewModel needs the Application.
     val provider = remember(owner) { ViewModelProvider(owner, ViewModelProvider.AndroidViewModelFactory(application)) }
-    val organizations = remember(owner) { provider[OrganizationsViewModel::class.java] }
-    val recommendations = remember(owner) { provider[GroupRecommendationsViewModel::class.java] }
-    val freeNow = remember(owner) { provider[FreeNowViewModel::class.java] }
-    val events = remember(owner) { provider[CampusEventsViewModel::class.java] }
-    val profileRecommendations = remember(owner) { provider["profileRecommendations", GroupRecommendationsViewModel::class.java] }
-    val myRsos = remember(owner) { provider[MyRSOsViewModel::class.java] }
-    val createGroup = remember(owner) { provider[CreateGroupViewModel::class.java] }
-    val checkIn = remember(owner) { provider[EventCheckInViewModel::class.java] }
-    var selectedTab by rememberSaveable(uid) { mutableStateOf("Discover") }
-    var creatingGroup by rememberSaveable(uid) { mutableStateOf(false) }
-    BackHandler(enabled = creatingGroup) { creatingGroup = false }
-    BackHandler(enabled = !creatingGroup && selectedTab != "Discover") { selectedTab = "Discover" }
-
-    // The proposal form replaces the whole screen, bottom bar included, until it is sent or dismissed.
-    if (creatingGroup) {
-        CreateGroupScreen(state = createGroup.state, onLoadCatalogue = createGroup::loadCatalogue,
-            onName = createGroup::setName, onCategory = createGroup::setCategory,
-            onDescription = createGroup::setDescription, onContactEmail = createGroup::setContactEmail,
-            onToggleInterest = createGroup::toggleInterest, onSubmit = createGroup::submit,
-            onDone = {
-                createGroup.reset()
-                creatingGroup = false
-                myRsos.refresh() // the pending proposal shows up with its badge straight away
-            },
-            onBack = { creatingGroup = false })
-        return
-    }
-
-    Column(Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.navigationBars)) {
-        Box(Modifier.weight(1f)) {
-            when (selectedTab) {
-                "Events" -> EventsScreen(freeNowState = freeNow.state, onLoadFreeNow = freeNow::load,
-                    onDemoNoon = freeNow::loadDemoNoon, onOpenSuggestedEvent = freeNow::openEvent,
-                    onLocationConsent = freeNow::setLocationConsent, onRetryLocationConsent = freeNow::refreshConsent,
-                    onUseLocation = freeNow::useLocation, onLocationUnavailable = freeNow::locationUnavailable,
-                    campusEventsState = events.state, onLoadEvents = events::load,
-                    onOpenEvent = events::open,
-                    onCloseEvent = { events.close(); checkIn.clear() },
-                    checkInState = checkIn.state, onStartScan = checkIn::startScan,
-                    onScanFailed = checkIn::scanFailed, onScanCancelled = checkIn::scanCancelled,
-                    onCheckIn = checkIn::checkIn)
-                "My RSOs" -> MyRSOsScreen(state = myRsos.state, onLoad = myRsos::load,
-                    onCreateGroup = { creatingGroup = true })
-                "Profile" -> ProfileScreen(profile = profile, loading = profileLoading, error = profileError,
-                    onRefresh = onRefreshProfile, onSignOut = onSignOut,
-                    recommendationsState = profileRecommendations.state, onLoadRecommendations = profileRecommendations::load,
-                    onOpenRecommendedGroup = profileRecommendations::openGroup, onJoinRecommendedGroup = profileRecommendations::joinGroup)
-                else -> DiscoverScreen(showBottomNavigation = false, highContrast = highContrast,
-                    organizationsState = organizations.state, onSearch = organizations::search,
-                    onOpenOrganization = organizations::open, onCloseOrganization = organizations::close,
-                    onToggleSave = organizations::toggleSave,
-                    recommendationsState = recommendations.state, onLoadRecommendations = recommendations::load,
-                    onOpenRecommendedGroup = recommendations::openGroup, onJoinRecommendedGroup = recommendations::joinGroup)
-            }
-        }
-        AppBottomNavigation(selectedTab, highContrast) { selectedTab = it }
-    }
+    CampusHomeScreen(uid, profile, highContrast, profileLoading, profileError, onRefreshProfile, onSignOut, provider)
 }

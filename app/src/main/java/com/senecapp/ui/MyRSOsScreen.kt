@@ -1,6 +1,7 @@
 package com.senecapp.ui
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -23,13 +24,14 @@ import java.util.TimeZone
 
 @Composable
 fun MyRSOsScreen(state: MyRsosUiState = MyRsosUiState(loading = false),
-                 onLoad: () -> Unit = {}, onCreateGroup: () -> Unit = {}) {
+                 onLoad: () -> Unit = {}, onCreateGroup: () -> Unit = {},
+                 attended: Int? = null, onOpenGroup: (Int) -> Unit = {}) {
     LaunchedEffect(Unit) { onLoad() }
     DemoView("My RSOs", showSampleLabel = false) {
         Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
             StatTile(if (state.loading) "—" else state.mine.size.toString(), "Joined", viewPrimary, Modifier.weight(1f))
-            StatTile("—", "Events attended", viewAccent, Modifier.weight(1f))
-            StatTile(if (state.loading) "—" else state.saved.size.toString(), "Saved", viewTeal, Modifier.weight(1f))
+            StatTile(attended?.toString() ?: "—", "Events attended", viewAccent, Modifier.weight(1f))
+            StatTile(com.senecapp.data.semesterLabel(), "This semester", viewTeal, Modifier.weight(1f))
         }
         if (state.fromCache) OfflineNotice(state)
         BrandButton("Propose a new group", onCreateGroup)
@@ -41,8 +43,8 @@ fun MyRSOsScreen(state: MyRsosUiState = MyRsosUiState(loading = false),
                 TextButton(onClick = onLoad) { Text("Retry", color = viewAccent) }
             }
             else -> {
-                RsoSection("Active Memberships", state.mine, "You have not joined a group yet. Find one in Discover.")
-                RsoSection("Saved from Explore", state.saved, "Nothing saved yet. Tap Save on a group in Discover.")
+                RsoSection("Active Memberships", state.mine, "You have not joined a group yet. Find one in Discover.", onOpenGroup)
+                RsoSection("Saved from Explore", state.saved, "Nothing saved yet. Tap Save on a group in Discover.", onOpenGroup)
             }
         }
     }
@@ -58,19 +60,19 @@ private fun OfflineNotice(state: MyRsosUiState) {
 }
 
 @Composable
-private fun RsoSection(title: String, groups: List<Rso>, empty: String) {
+private fun RsoSection(title: String, groups: List<Rso>, empty: String, onOpen: (Int) -> Unit) {
     SectionHeading(title)
     if (groups.isEmpty()) ViewText(empty, color = viewMuted)
-    else groups.forEach { RsoCard(it) }
+    else groups.forEach { RsoCard(it) { onOpen(it.id) } }
 }
 
 @Composable
-private fun RsoCard(group: Rso) {
+private fun RsoCard(group: Rso, onOpen: () -> Unit) {
     val color = organizationColor(group.color)
     Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(viewCard)
-        .border(1.dp, viewBorder, RoundedCornerShape(16.dp))) {
+        .border(1.dp, viewBorder, RoundedCornerShape(16.dp)).clickable(onClick = onOpen)) {
         Box(Modifier.fillMaxWidth().height(96.dp)) {
-            OrganizationImage(group.name, group.category, color, Modifier.fillMaxSize())
+            OrganizationImage(group.name, group.category, color, Modifier.fillMaxSize(), group.imageUrl)
             Box(Modifier.fillMaxSize().background(Brush.verticalGradient(listOf(
                 androidx.compose.ui.graphics.Color.Transparent, color.copy(alpha = .6f)))))
             Box(Modifier.align(Alignment.TopEnd).padding(12.dp)) {
@@ -87,7 +89,7 @@ private fun RsoCard(group: Rso) {
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Column(Modifier.weight(1f)) {
-                    Text(group.name, color = viewForeground, fontFamily = viewBricolage,
+                    Text(group.name + if (group.verified) " ✓" else "", color = viewForeground, fontFamily = viewBricolage,
                         fontSize = 16.sp, fontWeight = FontWeight.ExtraBold)
                     Text("${group.memberCount} members · ${group.category}", color = viewMuted,
                         fontFamily = viewNunito, fontSize = 12.sp)

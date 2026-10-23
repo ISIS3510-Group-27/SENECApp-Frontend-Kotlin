@@ -41,6 +41,7 @@ internal fun FreeNowSection(
     onRetryConsent: () -> Unit,
     onLocation: (EventCoordinates?, Boolean) -> Unit,
     onFallback: (String) -> Unit,
+    externalDetails: Boolean = false,
     eventsContent: @Composable () -> Unit = {},
 ) {
     var selectedEvent by remember { mutableStateOf<FreeNowEvent?>(null) }
@@ -77,8 +78,8 @@ internal fun FreeNowSection(
                     ViewText(result.message ?: "No events fit your free time right now.", color = viewMuted)
                 }
                 result.events.forEach { event ->
-                    StyledEventCard(event.title, event.groupName, campusTime(event.startsAt), event.buildingName ?: "Campus", onClick = {
-                        selectedEvent = event
+                    StyledEventCard(event.title, event.groupName, campusTime(event.startsAt), event.buildingName ?: "Campus", color = event.color, onClick = {
+                        if (!externalDetails) selectedEvent = event
                         onOpenEvent(event.id)
                     })
                     event.walkingMinutes?.let { StyleChip("About $it min walk", viewAccent) }

@@ -27,6 +27,8 @@ class MyRSOsViewModel(application: Application) : AndroidViewModel(application) 
     var state by mutableStateOf(MyRsosUiState())
         private set
     private var request: Job? = null
+    private var loaded = false
+    fun ensureLoaded() { if (!loaded || state.error != null) load() }
 
     fun load() {
         request?.cancel()
@@ -42,6 +44,7 @@ class MyRSOsViewModel(application: Application) : AndroidViewModel(application) 
                     cachedAt = result.cachedAt,
                     offline = result.fromCache && !repository.online(),
                 )
+                loaded = true
             } catch (cancelled: CancellationException) {
                 throw cancelled
             } catch (failure: Exception) {

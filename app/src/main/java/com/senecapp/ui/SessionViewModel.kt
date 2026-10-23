@@ -87,6 +87,20 @@ internal class SessionViewModel(private val auth: SessionAuth, private val profi
         }
     }
 
+    fun signInMicrosoft(activity: android.app.Activity) {
+        if (state.busy || !auth.configured) return
+        state = SessionUiState(auth.configured, busy = true)
+        authRequest = viewModelScope.launch {
+            try { auth.signInMicrosoft(activity); validateAccount() }
+            catch (cancelled: CancellationException) { throw cancelled }
+            catch (failure: Exception) {
+                auth.signOut()
+                state = SessionUiState(auth.configured, SessionPhase.SIGNED_OUT,
+                    error = signInMessage(failure))
+            } finally { observedUid = auth.account()?.uid }
+        }
+    }
+
     private suspend fun validateAccount() {
         val expectedUid = auth.account()?.uid ?: throw SessionRequiredException()
         auth.reload()
@@ -171,7 +185,8 @@ private fun signInMessage(failure: Exception): String = when (failure) {
     is FirebaseNetworkException -> "Cannot connect to Firebase. Check your internet connection and retry."
     is FirebaseTooManyRequestsException -> "Too many requests. Wait a few minutes and try again."
     is FirebaseAuthException -> when (failure.errorCode) {
-        "ERROR_OPERATION_NOT_ALLOWED" -> "Email/password sign-in is unavailable. Contact the project administrator."
+        "ERROR_OPERATION_NOT_ALLOWED" -> "This sign-in method is not enabled in Firebase. Contact the project administrator."
+        "ERROR_WEB_CONTEXT_CANCELED" -> "Microsoft sign-in was cancelled. You can try again."
         "ERROR_INVALID_EMAIL" -> "Check your university email address."
         else -> "Could not sign in. Check your email and password, then try again."
     }

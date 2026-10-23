@@ -170,7 +170,7 @@ internal fun EventCheckInSection(
 }
 
 /** The code scanner needs an Activity; Compose hands out a themed wrapper around it. */
-private fun Context.findActivity(): Activity? {
+internal fun Context.findActivity(): Activity? {
     var current = this
     while (current is ContextWrapper) {
         if (current is Activity) return current

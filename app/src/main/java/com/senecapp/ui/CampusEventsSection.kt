@@ -84,7 +84,8 @@ internal fun CampusEventsSection(state: CampusEventsUiState, onLoad: (Boolean) -
 
 @Composable
 internal fun StyledEventCard(title: String, group: String, time: String, location: String,
-                             cancelled: Boolean = false, onClick: () -> Unit) {
+                             cancelled: Boolean = false, color: String? = null,
+                             saved: Boolean = false, onSave: (() -> Unit)? = null, onClick: () -> Unit) {
     Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(viewCard)
         .border(1.dp, viewBorder, RoundedCornerShape(16.dp)).clickable(onClick = onClick).padding(16.dp),
         horizontalArrangement = Arrangement.spacedBy(14.dp), verticalAlignment = Alignment.Top) {
@@ -93,13 +94,19 @@ internal fun StyledEventCard(title: String, group: String, time: String, locatio
         }
         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
             Text(title, color = viewForeground, fontFamily = viewBricolage, fontSize = 14.sp, fontWeight = FontWeight.ExtraBold)
-            Text(group, color = categoryColor(group), fontFamily = viewNunito, fontWeight = FontWeight.Bold, fontSize = 12.sp)
+            Text(group, color = organizationColor(color), fontFamily = viewNunito, fontWeight = FontWeight.Bold, fontSize = 12.sp)
             Spacer(Modifier.height(2.dp))
             EventMeta(R.drawable.ic_event, time)
             EventMeta(R.drawable.ic_location, location)
             if (cancelled) StyleChip("Cancelled", viewAccent)
         }
-        Icon(painterResource(R.drawable.ic_chevron), contentDescription = null, tint = viewMuted, modifier = Modifier.size(20.dp))
+        if (onSave != null) Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            IconButton(onClick = onSave, modifier = Modifier.size(36.dp)) {
+                Icon(painterResource(if (saved) R.drawable.ic_bookmark else R.drawable.ic_bookmark_outline),
+                    contentDescription = if (saved) "Unsave event" else "Save event", tint = if (saved) viewAccent else viewMuted, modifier = Modifier.size(20.dp))
+            }
+            Icon(painterResource(R.drawable.ic_chevron), contentDescription = null, tint = viewMuted, modifier = Modifier.size(20.dp))
+        } else Icon(painterResource(R.drawable.ic_chevron), contentDescription = null, tint = viewMuted, modifier = Modifier.size(20.dp))
     }
 }
 

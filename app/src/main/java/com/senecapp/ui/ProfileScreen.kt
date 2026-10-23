@@ -1,11 +1,11 @@
 package com.senecapp.ui
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Brush
@@ -22,7 +22,12 @@ fun ProfileScreen(
     recommendationsState: GroupRecommendationsUiState = GroupRecommendationsUiState(loading = false),
     onLoadRecommendations: () -> Unit = {}, onOpenRecommendedGroup: (Int) -> Unit = {},
     onJoinRecommendedGroup: (Int) -> Unit = {},
+    joinedCount: Int? = null, attended: Int? = null,
+    outdoorMode: String = "Auto", onOutdoorMode: (String) -> Unit = {},
+    onLocation: (Boolean) -> Unit = {}, onSchedule: () -> Unit = {},
+    settingsBusy: Boolean = false, externalDetails: Boolean = false,
 ) {
+    var comingSoon by remember { mutableStateOf<String?>(null) }
     LaunchedEffect(Unit) { onRefresh() }
     DemoView("Profile", showSampleLabel = false) {
         if (profile == null) {
@@ -49,9 +54,8 @@ fun ProfileScreen(
                     }
                 }
                 Row(Modifier.fillMaxWidth()) {
-                    // The existing profile does not expose membership or attendance counts.
-                    ProfileStat("—", "RSOs", Modifier.weight(1f))
-                    ProfileStat("—", "Events", Modifier.weight(1f))
+                    ProfileStat(joinedCount?.toString() ?: "—", "RSOs", Modifier.weight(1f))
+                    ProfileStat(attended?.toString() ?: "—", "Events", Modifier.weight(1f))
                     ProfileStat(profile.semester?.toString() ?: "—", "Semester", Modifier.weight(1f))
                 }
             }
@@ -60,14 +64,28 @@ fun ProfileScreen(
             else FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 profile.interests.forEach { StyleChip(it, viewForeground) }
             }
+            TextButton(onClick = { comingSoon = "Editing interests" }) { Text("+ Add interest", color = viewAccent) }
             SectionHeading("Account")
             ViewCard {
-                AccountRow("University Verification", "Verified via uniandes.edu.co")
+                Box(Modifier.fillMaxWidth().clickable(onClick = onSchedule)) { AccountRow("Class schedule →", "Improve suggestions around your classes") }
                 HorizontalDivider(color = viewBorder)
-                AccountRow("Location", if (profile.locationOptIn) "Location suggestions enabled" else "Location suggestions disabled")
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Column(Modifier.weight(1f)) { AccountRow("Location sharing", "Nearby event suggestions") }
+                    Switch(checked = profile.locationOptIn, onCheckedChange = onLocation, enabled = !settingsBusy,
+                        colors = SwitchDefaults.colors(checkedThumbColor = viewAccent, checkedTrackColor = viewAccent.copy(alpha = .3f)))
+                }
                 HorizontalDivider(color = viewBorder)
-                AccountRow("Notifications", if (profile.notificationsOptIn) "Event alerts enabled" else "Event alerts disabled")
-                Text("You can change location consent in Events.", color = viewMuted, fontFamily = viewNunito, fontSize = 12.sp)
+                AccountRow("Outdoor mode", "Increase contrast in bright light")
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    listOf("Auto", "On", "Off").forEach { mode ->
+                        FilterChip(selected = outdoorMode == mode, onClick = { onOutdoorMode(mode) }, label = { Text(mode) })
+                    }
+                }
+                listOf("Notifications" to "Manage event alerts", "Privacy Settings" to "Control who sees your profile",
+                    "University Verification" to "Verified via uniandes.edu.co", "Help & Support" to "Report an issue").forEach { (title, subtitle) ->
+                    HorizontalDivider(color = viewBorder)
+                    Box(Modifier.fillMaxWidth().clickable { comingSoon = title }) { AccountRow(title, subtitle) }
+                }
                 HorizontalDivider(color = viewBorder)
                 TextButton(onClick = onRefresh, enabled = !loading) {
                     Text(if (loading) "Refreshing…" else "Refresh profile", color = viewAccent)
@@ -75,9 +93,14 @@ fun ProfileScreen(
                 TextButton(onClick = onSignOut) { Text("Sign out", color = viewPrimary) }
             }
             ProfileRecommendationSection(recommendationsState, onLoadRecommendations,
-                onOpenRecommendedGroup, onJoinRecommendedGroup)
+                onOpenRecommendedGroup, onJoinRecommendedGroup, externalDetails)
         }
         error?.let { InfoNotice(it, error = true) }
+    }
+    comingSoon?.let { title ->
+        AlertDialog(onDismissRequest = { comingSoon = null }, containerColor = viewCard,
+            title = { ViewText(title, heading = true) }, text = { ViewText("$title is coming soon.") },
+            confirmButton = { TextButton(onClick = { comingSoon = null }) { Text("OK", color = viewAccent) } })
     }
 }
 

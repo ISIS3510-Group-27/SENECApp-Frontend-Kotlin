@@ -27,28 +27,35 @@ Flutter is the visual reference. Keep the native presentation aligned with:
 
 Bundled group photos, the logo and both mascots are copied from Flutter without image modifications. The launcher uses the SENECApp goat-and-chess logo on a black adaptive background; the installed app is named `SENECApp Kotlin` to distinguish the clients. `OrganizationImage` resolves bundled photos from normalized group names, with a colored gradient fallback. When adding Flutter artwork, copy it into `res/drawable-nodpi` and extend that mapping.
 
-## Scope
+## Funciones conectadas en Kotlin
 
-Updated the presentation of sign-in, registration/verification, Discover, group details, My RSOs, Profile, Events, event details and group proposals. Existing data sources, authentication, API contracts, validation and ViewModels remain unchanged. Existing save/join callbacks are reused by the styled controls. Group and event details use a full-screen presentation of the existing state.
+El backend y Flutter se mantienen sin cambios. Kotlin usa las rutas existentes y conserva la base de AWS configurada.
 
-Events retains its existing location, shake, demo and QR controls. Location and shake preferences sit below the event feed; Flutter instead opens its free-now tools in a separate route. No new route or sensor behavior was introduced.
+- Discover: búsqueda, categorías, próximos eventos, filtros por orden/intereses/edificios/oficiales, recomendaciones completas, nueva RSO y notificaciones.
+- Datos reales: portadas remotas con respaldo local, colores, insignias oficiales, próximo evento, membresías y asistencia del semestre.
+- Grupos: portada y botón fijo como Flutter, información completa, guardar, formulario de ingreso, salir, eventos del grupo y acceso para líderes.
+- Líderes: crear eventos con sugerencias de horario/lugar del servidor, cambiar portada desde galería/cámara y resolver solicitudes de administradores.
+- Eventos: búsqueda y fechas desde el encabezado, resumen semanal, All Events/My RSOs/Saved, marcadores por cuenta en el celular e itinerario sin cruces.
+- Detalles de eventos: copiar información, abrir la RSO, advertencia de cruce con clases, estado/horario de check-in, lector QR y código para organizadores.
+- Perfil: contadores reales, horario semanal editable, ubicación y contraste Auto/On/Off. El contraste manual se conserva en el celular.
+- Navegación: historial por pestaña y conservación de búsquedas/desplazamiento. Volver de cámara, galería o lector QR conserva la pantalla actual.
+- Inicio de sesión: botón Microsoft usando el proveedor de Firebase existente; conserva la validación universitaria del proyecto.
 
-## Differences that require a later logic/data change
+La fuente Nunito original tiene peso predeterminado 200. Se generaron versiones estáticas 400/600/700/800 desde ese mismo archivo para mostrar los pesos de Flutter también en Android 7, sin agregar lógica de fuentes en tiempo de ejecución.
 
-| Visual difference | Missing integration |
-| --- | --- |
-| User-uploaded cover images | Kotlin models do not expose `image_url`; add the field, URL resolution and remote-image loading. Bundled art works now. |
-| Exact colors in recommendation/event cards | Some Kotlin models omit the server's group color. Presentation currently falls back to a category accent. |
-| Official badges and precise next-event pills in Discover | The current organization model omits `verified` and the next event's date/title. Do not fabricate these badges or timestamps. |
-| Profile RSO/event counters and attendance in My RSOs | Load and share membership/attendance statistics. Unavailable counters display an em dash. My RSOs shows the existing saved-group count instead of a semester statistic. |
-| Full group details | Tags, links, organizers, upcoming group events, membership state and actions need a richer detail model and wiring. The current description, member count and existing save/join actions are presented. |
-| Notification inbox and unread badge | Requires notification state and navigation. The existing decorative bell remains without an unread dot. |
-| Discover advanced filters, See all and New RSO placement | Requires filter/navigation wiring. Existing category/upcoming filters and the My RSOs create action are preserved. |
-| Events search/date filters, bookmarks, itinerary and weekly summary | These Flutter features are not implemented in Kotlin. No nonfunctional controls or invented weekly totals were added. |
-| Profile interest/schedule editors and additional settings | Requires the corresponding repositories, state and navigation. Existing profile fields/preferences remain visible. |
-| Microsoft sign-in | Requires Firebase provider integration; the password sign-in layout is aligned now. |
-| Independent tab navigation stacks and retained scroll positions | Requires navigation/state changes; this styling pass keeps Kotlin's existing tab behavior. |
+## Límites y pendientes
 
-## Verification
+- Hace falta probar con una cuenta real verificada de `@uniandes.edu.co` para validar de extremo a extremo acciones sobre AWS. Las herramientas de líder necesitan una cuenta administradora de una RSO aprobada.
+- Microsoft requiere que ese proveedor esté habilitado en Firebase `senecapp`, con la configuración de Microsoft y la huella del APK de Kotlin. No se modificó la consola de Firebase ni se agregó ningún secreto al repositorio.
+- No se agregaron notificaciones push ni recordatorios automáticos de salida en segundo plano. La bandeja dentro de la app sí usa el backend. No hay registro de dispositivos FCM ni nuevas alarmas/servicios.
+- Editar intereses y las opciones adicionales Notifications/Privacy/Verification/Help muestran el aviso de “coming soon”, igual que Flutter. El horario y la ubicación sí se guardan.
+- La sección de miembros muestra el total real. Los avatares con iniciales de muestra de Flutter no corresponden a una lista de miembros disponible en este contrato.
+- Los selectores nativos de Android para fecha, hora, cámara y galería pueden verse diferentes. Colores, imágenes, tipografías, tarjetas y distribución general siguen la referencia Flutter.
+- Los marcadores de eventos se guardan localmente por cuenta, como Flutter; no se sincronizan entre dispositivos.
 
-Use the existing `:app:testDebugUnitTest` checks for regression coverage and assemble debug/release. Visual inspection uses a temporary emulator and screen fixtures without accounts or backend requests. The fixture Activity and its manifest entry are removed before the final build; the real application flow remains the entry point.
+## Verificación
+
+- `:app:assembleDebug :app:assembleRelease :app:testDebugUnitTest`.
+- 38 pruebas: sesiones y registro existentes, lectura de grupos/eventos/horario/notificaciones, carga de imágenes con el cliente existente, filtros, itinerario y cruces de clases.
+- Revisión visual en emulador temporal con ejemplos sin cuenta. Se comprobó guardar/filtrar un evento y agregar una clase conservando las anteriores. La Activity y el manifiesto de prueba se retiran antes de la compilación final.
+- Swagger público de AWS: las rutas de portadas, solicitudes, sugerencias, horario, notificaciones y QR están publicadas. Health de base de datos respondió `ok`.

@@ -40,8 +40,11 @@ internal val viewSecondary = Color(0xFF1D3557)
 internal val viewPrimary = Color(0xFFA50104)
 internal val viewBorder = Color.White.copy(alpha = .06f)
 internal val viewTeal = Color(0xFF00C9A7)
-internal val viewNunito = FontFamily(Font(R.font.nunito))
-internal val viewBricolage = FontFamily(Font(R.font.bricolage_grotesque))
+// Static weights also render consistently on Android 7, which lacks variable-font support.
+internal val viewNunito = FontFamily(Font(R.font.nunito_regular, FontWeight.Normal),
+    Font(R.font.nunito_semibold, FontWeight.SemiBold), Font(R.font.nunito_bold, FontWeight.Bold),
+    Font(R.font.nunito_extrabold, FontWeight.ExtraBold))
+internal val viewBricolage = FontFamily(Font(R.font.bricolage_grotesque, FontWeight.ExtraBold))
 
 @Composable
 internal fun ViewText(text: String, heading: Boolean = false, color: Color = viewForeground) {
@@ -100,10 +103,10 @@ internal fun ViewCard(modifier: Modifier = Modifier, content: @Composable Column
 
 @Composable
 internal fun BrandButton(text: String, onClick: () -> Unit, enabled: Boolean = true,
-                         secondary: Boolean = false, busy: Boolean = false) {
+                         secondary: Boolean = false, busy: Boolean = false, color: Color? = null) {
     Button(onClick = onClick, enabled = enabled && !busy, modifier = Modifier.fillMaxWidth().heightIn(min = 54.dp),
         shape = RoundedCornerShape(16.dp), colors = ButtonDefaults.buttonColors(
-            containerColor = if (secondary) viewSecondary else viewPrimary, contentColor = viewForeground,
+            containerColor = if (secondary) viewSecondary else color ?: viewPrimary, contentColor = viewForeground,
             disabledContainerColor = viewSecondary, disabledContentColor = viewMuted)) {
         if (busy) CircularProgressIndicator(Modifier.size(22.dp), strokeWidth = 2.5.dp, color = viewForeground)
         else Text(text, fontFamily = viewBricolage, fontSize = 16.sp, fontWeight = FontWeight.Bold)
@@ -171,9 +174,9 @@ internal fun organizationColor(value: String?): Color = runCatching {
     Color(android.graphics.Color.parseColor(value.orEmpty()))
 }.getOrDefault(Color(0xFF3B82F6))
 
-// Same bundled art and name-derived slugs as Flutter. Remote URLs need model changes, deferred.
 @Composable
-internal fun OrganizationImage(name: String, category: String, color: Color, modifier: Modifier = Modifier) {
+internal fun OrganizationImage(name: String, category: String, color: Color, modifier: Modifier = Modifier,
+    imageUrl: String? = null) {
     val slug = Normalizer.normalize(name, Normalizer.Form.NFD).replace(Regex("\\p{Mn}+"), "")
         .lowercase(Locale.ROOT).replace("&", "").replace(Regex("[^a-z0-9]+"), "_").trim('_')
     val image = when (slug) {
@@ -187,7 +190,11 @@ internal fun OrganizationImage(name: String, category: String, color: Color, mod
         "viajeros_uniandes" -> R.drawable.viajeros_uniandes
         else -> null
     }
-    if (image != null) Image(painterResource(image), contentDescription = null, modifier = modifier,
+    if (!imageUrl.isNullOrBlank()) coil3.compose.AsyncImage(model = com.senecapp.data.mediaUrl(imageUrl),
+        contentDescription = null, modifier = modifier.background(color.copy(alpha = .25f)),
+        placeholder = image?.let { painterResource(it) }, error = image?.let { painterResource(it) },
+        contentScale = ContentScale.Crop)
+    else if (image != null) Image(painterResource(image), contentDescription = null, modifier = modifier,
         contentScale = ContentScale.Crop)
     else Box(modifier.background(Brush.linearGradient(listOf(color.copy(alpha = .55f), color.copy(alpha = .18f), viewCard))),
         contentAlignment = Alignment.Center) {

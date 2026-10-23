@@ -23,6 +23,7 @@ internal fun AuthTheme(content: @Composable () -> Unit) {
     MaterialTheme(
         colorScheme = darkColorScheme(primary = viewPrimary, onPrimary = Color.White,
             secondary = viewAccent, onSecondary = viewBackground,
+            secondaryContainer = viewAccent, onSecondaryContainer = viewBackground,
             background = viewBackground, onBackground = viewForeground, surface = viewCard,
             onSurface = viewForeground, surfaceVariant = viewSecondary, onSurfaceVariant = viewMuted,
             outline = Color.White.copy(alpha = .08f), error = Color(0xFFFFB4AB)),
@@ -41,7 +42,8 @@ internal fun AuthTheme(content: @Composable () -> Unit) {
 
 @Composable
 internal fun SignInScreen(state: SessionUiState, onSignIn: (String, String) -> Unit,
-    onResetPassword: (String) -> Unit, onCreateAccount: () -> Unit, onClearMessage: () -> Unit) {
+    onResetPassword: (String) -> Unit, onCreateAccount: () -> Unit, onClearMessage: () -> Unit,
+    onMicrosoft: () -> Unit = {}) {
     var email by rememberSaveable { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
     var showPassword by remember { mutableStateOf(false) }
@@ -73,6 +75,7 @@ internal fun SignInScreen(state: SessionUiState, onSignIn: (String, String) -> U
                     Text("Back to sign in", color = viewAccent)
                 }
             } else {
+                BrandButton("Continue with Microsoft", onMicrosoft, enabled = state.configured && !state.busy, secondary = true)
                 TextButton(onClick = { password = ""; recovering = true; onClearMessage() },
                     enabled = !state.busy, modifier = Modifier.align(Alignment.CenterHorizontally)) {
                     Text("Forgot password?", color = viewAccent)
