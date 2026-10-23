@@ -1,13 +1,29 @@
+import java.net.URI
+import java.util.Properties
+
 plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.plugin.compose")
 }
 
-// The Google Services plugin fails the build when google-services.json is missing, and that file
-// comes from a Firebase project the team has not created yet. Applying it only when the file is
-// there keeps everyone compiling today and turns Firebase on by itself the day it lands.
+// Firebase sign-in requires app/google-services.json from the senecapp project.
 if (file("google-services.json").exists()) {
     apply(plugin = "com.google.gms.google-services")
+}
+
+// Command-line/Gradle properties override the optional, git-ignored local configuration.
+val backendProperties = Properties().apply {
+    val configFile = rootProject.file("backend.local.properties")
+    if (configFile.exists()) configFile.inputStream().use { load(it) }
+}
+val apiBaseUrl = providers.gradleProperty("apiBaseUrl").orNull
+    ?: backendProperties.getProperty("apiBaseUrl")
+    ?: "https://35-170-175-16.sslip.io/api/v1"
+val normalizedApiBaseUrl = apiBaseUrl.trim().trimEnd('/')
+val backendUri = URI(normalizedApiBaseUrl)
+require(backendUri.scheme in setOf("https", "http") && !backendUri.host.isNullOrBlank() &&
+    backendUri.rawUserInfo == null && backendUri.rawQuery == null && backendUri.rawFragment == null) {
+    "apiBaseUrl must be an HTTP(S) API base URL without credentials, query parameters or a fragment."
 }
 
 android {
@@ -20,30 +36,13 @@ android {
         targetSdk = 37
         versionCode = 1
         versionName = "1.0"
+        // Shared by debug and release. Authentication always uses Firebase ID tokens.
+        buildConfigField("String", "API_BASE_URL", "\"${backendUri.toASCIIString()}\"")
     }
 
     buildFeatures {
         compose = true
         buildConfig = true
-    }
-
-    buildTypes {
-        getByName("debug") {
-            val apiBaseUrl = providers.gradleProperty("apiBaseUrl")
-                .getOrElse("http://10.0.2.2:8000/api/v1")
-            buildConfigField("String", "API_BASE_URL", "\"$apiBaseUrl\"")
-            buildConfigField("String", "DEV_TOKEN", "\"dev:s.arango@uniandes.edu.co\"")
-            // Which TokenProvider strategy to install: "dev" or "firebase". Mirrors the backend's
-            // own AUTH_PROVIDER setting, which has to be switched at the same time.
-            // Override without editing this file: ./gradlew -PauthProvider=firebase ...
-            val authProvider = providers.gradleProperty("authProvider").getOrElse("dev")
-            buildConfigField("String", "AUTH_PROVIDER", "\"$authProvider\"")
-        }
-        getByName("release") {
-            buildConfigField("String", "API_BASE_URL", "\"\"")
-            buildConfigField("String", "DEV_TOKEN", "\"\"")
-            buildConfigField("String", "AUTH_PROVIDER", "\"firebase\"")
-        }
     }
 }
 
@@ -64,4 +63,9 @@ dependencies {
     implementation("com.google.android.gms:play-services-code-scanner:16.1.0")
 
     debugImplementation("androidx.compose.ui:ui-tooling")
+
+    // Existing unit tests cover Firebase session handling, token renewal and profile JSON.
+    testImplementation("junit:junit:4.13.2")
+    testImplementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:1.11.0")
+    testImplementation("org.json:json:20240303")
 }

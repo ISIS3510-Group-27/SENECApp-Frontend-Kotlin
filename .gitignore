@@ -3,6 +3,7 @@
 build/
 **/build/
 local.properties
+backend.local.properties
 *.iml
 .DS_Store
 captures/
