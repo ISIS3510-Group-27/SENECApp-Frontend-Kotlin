@@ -14,7 +14,7 @@ internal fun ProfileRecommendationSection(state: GroupRecommendationsUiState, on
     var selected by remember { mutableStateOf<GroupRecommendation?>(null) }
     ViewCard {
         ViewText("Find your next organization", heading = true)
-        ViewText("Personalized suggestions for the connected demo account", color = viewMuted)
+        ViewText("Personalized suggestions for your interests", color = viewMuted)
         TextButton(enabled = !requested || (!state.loading && state.joiningGroupId == null), onClick = {
             requested = true
             onLoad()

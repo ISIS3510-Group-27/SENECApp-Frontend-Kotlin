@@ -41,13 +41,16 @@ internal fun FreeNowSection(
     onRetryConsent: () -> Unit,
     onLocation: (EventCoordinates?, Boolean) -> Unit,
     onFallback: (String) -> Unit,
+    eventsContent: @Composable () -> Unit = {},
 ) {
     var selectedEvent by remember { mutableStateOf<FreeNowEvent?>(null) }
     var previewMenu by remember { mutableStateOf(false) }
 
     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
         ViewCard {
-            ViewText("Events for your free time", heading = true)
+            StyleChip("FREE RIGHT NOW", viewAccent)
+            ViewText("Free right now?", heading = true)
+            Text("Events nearby that fit before your next class", color = viewMuted, fontFamily = viewNunito, fontSize = 12.sp)
             if (state.demoMode) {
                 Text("Demo · Today at noon", color = viewAccent, fontFamily = viewNunito,
                     fontSize = 12.sp, modifier = Modifier.background(viewSecondary, RoundedCornerShape(8.dp))
@@ -67,6 +70,24 @@ internal fun FreeNowSection(
             }
             if (state.loading) ViewText("Finding suggestions…", color = viewMuted)
             state.error?.let { ViewText(it, color = viewForeground) }
+
+        }
+        state.result?.let { result ->
+                if (result.events.isEmpty()) {
+                    ViewText(result.message ?: "No events fit your free time right now.", color = viewMuted)
+                }
+                result.events.forEach { event ->
+                    StyledEventCard(event.title, event.groupName, campusTime(event.startsAt), event.buildingName ?: "Campus", onClick = {
+                        selectedEvent = event
+                        onOpenEvent(event.id)
+                    })
+                    event.walkingMinutes?.let { StyleChip("About $it min walk", viewAccent) }
+                    event.reasons.firstOrNull()?.let { ViewText(it, color = viewBody) }
+                }
+            }
+        eventsContent()
+        ViewCard {
+            SectionHeading("Nearby event preferences")
             NearbyEventsControls(state, onConsent, onRetryConsent, onLocation, onFallback)
             ShakeRefreshControl(state, active = selectedEvent == null, onRefresh = onRefresh)
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
@@ -93,25 +114,6 @@ internal fun FreeNowSection(
                 }
             }
         }
-        state.result?.let { result ->
-                if (result.events.isEmpty()) {
-                    ViewText(result.message ?: "No events fit your free time right now.", color = viewMuted)
-                }
-                result.events.forEach { event ->
-                    Box(Modifier.fillMaxWidth().clickable {
-                        selectedEvent = event
-                        onOpenEvent(event.id)
-                    }) {
-                        ViewCard {
-                            ViewText(event.title, heading = true)
-                            ViewText(event.groupName, color = viewAccent)
-                            ViewText("${campusTime(event.startsAt)} · ${event.buildingName ?: "Campus"}", color = viewMuted)
-                            event.walkingMinutes?.let { ViewText("About $it min walk", color = viewMuted) }
-                            event.reasons.firstOrNull()?.let { ViewText(it, color = viewForeground) }
-                        }
-                    }
-                }
-            }
         state.openError?.let { ViewText(it, color = viewMuted) }
     }
 

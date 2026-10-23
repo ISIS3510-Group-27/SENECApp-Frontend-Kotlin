@@ -31,29 +31,25 @@ fun RegistrationScreen(state: RegistrationUiState, onCreate: (String, String, St
         if (state.email != null) { password = ""; confirmation = ""; showPassword = false }
     }
     AuthTheme {
-        DemoView(if (state.email == null) "Create account" else "Verify your email", showSampleLabel = false) {
+        AuthPage(if (state.email == null) "Create your account" else "Verify your email",
+            if (state.email == null) "Use your university email. We'll send you a link to verify it."
+            else "Open the verification link in your inbox, then come back to SENECApp.") {
             if (!state.configured) ViewText("Registration is unavailable in this build. Firebase setup is required.", color = viewMuted)
             if (state.email == null) {
-                ViewText("Use your university email to create a SENECApp account.", color = viewMuted)
-                OutlinedTextField(value = email, onValueChange = { email = it }, label = { Text("University email") },
-                    placeholder = { Text("name@uniandes.edu.co") }, singleLine = true,
-                    enabled = !state.busy, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email),
-                    modifier = Modifier.fillMaxWidth())
+                BrandField(value = email, onValueChange = { email = it }, label = "University email",
+                    placeholder = "you@uniandes.edu.co", enabled = !state.busy,
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email))
                 val transformation = if (showPassword) VisualTransformation.None else PasswordVisualTransformation()
-                OutlinedTextField(value = password, onValueChange = { password = it }, label = { Text("Password") },
+                BrandField(value = password, onValueChange = { password = it }, label = "Password",
                     singleLine = true, enabled = !state.busy, visualTransformation = transformation,
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
-                    trailingIcon = { TextButton(onClick = { showPassword = !showPassword }) { Text(if (showPassword) "Hide" else "Show") } },
-                    modifier = Modifier.fillMaxWidth())
-                OutlinedTextField(value = confirmation, onValueChange = { confirmation = it },
-                    label = { Text("Confirm password") }, singleLine = true, enabled = !state.busy,
-                    visualTransformation = transformation, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
-                    modifier = Modifier.fillMaxWidth())
+                    trailingIcon = { TextButton(onClick = { showPassword = !showPassword }) { Text(if (showPassword) "Hide" else "Show", color = viewMuted) } })
+                BrandField(value = confirmation, onValueChange = { confirmation = it },
+                    label = "Confirm password", singleLine = true, enabled = !state.busy,
+                    visualTransformation = transformation, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password))
                 ViewText("At least 6 characters. Your project's password policy may require more.", color = viewMuted)
-                Button(enabled = state.configured && !state.busy,
-                    onClick = { onCreate(email, password, confirmation) }, modifier = Modifier.fillMaxWidth()) {
-                    Text(if (state.busy) "Creating account…" else "Create account")
-                }
+                BrandButton("Create account", enabled = state.configured, busy = state.busy,
+                    onClick = { onCreate(email, password, confirmation) })
             } else {
                 ViewCard {
                     ViewText(state.email, color = viewAccent)
