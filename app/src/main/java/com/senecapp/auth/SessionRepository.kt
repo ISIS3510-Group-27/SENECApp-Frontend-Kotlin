@@ -2,6 +2,8 @@ package com.senecapp.auth
 
 import android.content.Context
 import com.google.firebase.auth.FirebaseAuth
+import com.google.firebase.auth.OAuthProvider
+import android.app.Activity
 
 internal data class SessionAccount(val uid: String, val email: String, val verified: Boolean)
 
@@ -10,6 +12,7 @@ internal interface SessionAuth {
     fun account(): SessionAccount?
     fun observe(onChange: () -> Unit): () -> Unit
     suspend fun signIn(email: String, password: String)
+    suspend fun signInMicrosoft(activity: Activity) { error("Microsoft sign-in is unavailable.") }
     suspend fun reload()
     suspend fun refreshToken()
     suspend fun resetPassword(email: String)
@@ -31,6 +34,14 @@ internal class SessionRepository(context: Context) : SessionAuth {
 
     override suspend fun signIn(email: String, password: String) {
         requireNotNull(auth).signInWithEmailAndPassword(email, password).awaitResult()
+    }
+
+    override suspend fun signInMicrosoft(activity: Activity) {
+        val firebase = requireNotNull(auth)
+        val provider = OAuthProvider.newBuilder("microsoft.com")
+            .addCustomParameter("tenant", "uniandes.edu.co")
+            .addCustomParameter("prompt", "select_account").build()
+        (firebase.pendingAuthResult ?: firebase.startActivityForSignInWithProvider(activity, provider)).awaitResult()
     }
 
     override suspend fun reload() {

@@ -3,6 +3,8 @@ package com.senecapp.ui
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -15,9 +17,14 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.res.painterResource
+import com.senecapp.R
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -38,13 +45,24 @@ fun CreateGroupScreen(
 ) {
     LaunchedEffect(Unit) { onLoadCatalogue() }
 
-    DemoView("Propose a group", showSampleLabel = false) {
+    DemoView("Create New RSO", showSampleLabel = false, header = {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            IconButton(onClick = onBack) {
+                Icon(painterResource(R.drawable.ic_detail_back), contentDescription = "Back to My RSOs",
+                    tint = viewForeground, modifier = Modifier.size(18.dp))
+            }
+            Column {
+                ViewText("Create New RSO", heading = true)
+                Text("Propose a new SENECApp organization", color = viewMuted, fontFamily = viewNunito, fontSize = 12.sp)
+            }
+        }
+    }) {
         state.created?.let { created ->
             Confirmation(created.name, created.reviewStatus, created.tags, onDone)
             return@DemoView
         }
 
-        TextButton(onClick = onBack) { Text("← Back to My RSOs", color = viewAccent) }
+        InfoNotice("Propose a new SENECApp organization. An administrator reviews your proposal before it appears in Discover.")
 
         when {
             state.catalogueLoading -> ViewText("Loading categories…", color = viewMuted)
@@ -71,17 +89,17 @@ fun CreateGroupScreen(
 
                 Button(
                     modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(12.dp),
+                    shape = RoundedCornerShape(16.dp),
                     enabled = state.canSubmit,
                     colors = ButtonDefaults.buttonColors(
-                        containerColor = viewAccent, contentColor = viewBackground,
+                        containerColor = viewPrimary, contentColor = viewForeground,
                         disabledContainerColor = viewSecondary, disabledContentColor = viewMuted,
                     ),
                     onClick = onSubmit,
                 ) {
                     Text(
-                        if (state.submitting) "Sending…" else "Send proposal",
-                        fontFamily = viewNunito,
+                        if (state.submitting) "Sending…" else "Submit for Review",
+                        fontFamily = viewBricolage,
                         modifier = Modifier.padding(vertical = 4.dp),
                     )
                 }
@@ -102,21 +120,13 @@ private fun Field(
     singleLine: Boolean = true,
 ) {
     Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-        ViewText(label.uppercase(), color = viewMuted)
-        OutlinedTextField(
+        BrandField(
             value = value,
             onValueChange = onValueChange,
-            modifier = Modifier.fillMaxWidth(),
+            label = label,
             singleLine = singleLine,
-            minLines = if (singleLine) 1 else 4,
             isError = error != null,
-            placeholder = { Text(placeholder, color = viewMuted, fontFamily = viewNunito, fontSize = 13.sp) },
-            shape = RoundedCornerShape(12.dp),
-            colors = OutlinedTextFieldDefaults.colors(
-                focusedTextColor = viewForeground, unfocusedTextColor = viewForeground,
-                focusedBorderColor = viewAccent, unfocusedBorderColor = viewSecondary,
-                cursorColor = viewAccent, errorBorderColor = viewPrimary,
-            ),
+            placeholder = placeholder,
         )
         error?.let { ViewText(it, color = viewAccent) }
     }
@@ -124,7 +134,7 @@ private fun Field(
 
 @Composable
 private fun CategoryPicker(state: CreateGroupUiState, onCategory: (String) -> Unit) {
-    ViewText("CATEGORY", color = viewMuted)
+    SectionHeading("CATEGORY")
     FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
         state.categories.forEach { category ->
             FilterChip(
@@ -132,8 +142,8 @@ private fun CategoryPicker(state: CreateGroupUiState, onCategory: (String) -> Un
                 onClick = { onCategory(category.slug) },
                 label = { Text(category.label, fontFamily = viewNunito) },
                 colors = FilterChipDefaults.filterChipColors(
-                    containerColor = viewSecondary, labelColor = viewForeground,
-                    selectedContainerColor = viewAccent, selectedLabelColor = viewBackground,
+                    containerColor = viewCard, labelColor = viewMuted,
+                    selectedContainerColor = viewPrimary, selectedLabelColor = viewForeground,
                 ),
             )
         }
@@ -145,7 +155,7 @@ private fun InterestChips(state: CreateGroupUiState, onToggle: (Int) -> Unit) {
     // Everything the student might pick: what was inferred, plus anything they added by hand.
     val shown = (state.suggested + state.interests.filter { it.id in state.selectedInterestIds })
         .distinctBy { it.id }
-    ViewText("INTERESTS", color = viewMuted)
+    SectionHeading("INTERESTS")
     when {
         state.interests.isEmpty() -> ViewText("No interests available.", color = viewMuted)
         shown.isEmpty() -> ViewText(
@@ -172,8 +182,8 @@ private fun InterestChip(interest: Interest, selected: Boolean, onToggle: (Int) 
         onClick = { onToggle(interest.id) },
         label = { Text(interest.name, fontFamily = viewNunito) },
         colors = FilterChipDefaults.filterChipColors(
-            containerColor = viewSecondary, labelColor = viewForeground,
-            selectedContainerColor = viewAccent, selectedLabelColor = viewBackground,
+            containerColor = viewCard, labelColor = viewMuted,
+            selectedContainerColor = viewPrimary, selectedLabelColor = viewForeground,
         ),
     )
 }

@@ -8,6 +8,9 @@ data class GroupRecommendation(
     val memberCount: Int,
     val reasons: List<String>,
     val isMember: Boolean,
+    val color: String? = null,
+    val imageUrl: String? = null,
+    val verified: Boolean = false,
 )
 
 data class GroupRecommendations(

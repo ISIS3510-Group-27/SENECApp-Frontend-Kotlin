@@ -9,12 +9,12 @@ import com.senecapp.data.GroupRecommendation
 /** Reuses the server's trained ranking; does not invent a second client-side model. */
 @Composable
 internal fun ProfileRecommendationSection(state: GroupRecommendationsUiState, onLoad: () -> Unit,
-    onOpen: (Int) -> Unit, onJoin: (Int) -> Unit) {
+    onOpen: (Int) -> Unit, onJoin: (Int) -> Unit, externalDetails: Boolean = false) {
     var requested by remember { mutableStateOf(false) }
     var selected by remember { mutableStateOf<GroupRecommendation?>(null) }
     ViewCard {
         ViewText("Find your next organization", heading = true)
-        ViewText("Personalized suggestions for the connected demo account", color = viewMuted)
+        ViewText("Personalized suggestions for your interests", color = viewMuted)
         TextButton(enabled = !requested || (!state.loading && state.joiningGroupId == null), onClick = {
             requested = true
             onLoad()
@@ -30,7 +30,7 @@ internal fun ProfileRecommendationSection(state: GroupRecommendationsUiState, on
                         ViewText(group.name, heading = true)
                         ViewText(group.category, color = viewAccent)
                         group.reasons.forEach { ViewText(it, color = viewMuted) }
-                        TextButton(onClick = { selected = group; onOpen(group.id) }) {
+                        TextButton(onClick = { if (!externalDetails) selected = group; onOpen(group.id) }) {
                             Text("View organization", color = viewAccent)
                         }
                     }

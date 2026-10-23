@@ -38,17 +38,26 @@ class CampusEventsViewModel : ViewModel() {
     }
 
     fun open(event: CampusEvent) {
+        openId(event.id, "events", event)
+    }
+
+    fun openId(id: Int, source: String = "events", preview: CampusEvent? = null, requestId: String? = null) {
         detailRequest?.cancel()
-        state = state.copy(selected = event, detailLoading = true, detailError = null)
+        state = state.copy(selected = preview, detailLoading = true, detailError = null)
         detailRequest = viewModelScope.launch {
             try {
-                val fresh = repository.detail(event.id)
+                val fresh = repository.detail(id, source, requestId)
                 state = state.copy(selected = fresh, detailLoading = false)
             } catch (cancelled: CancellationException) { throw cancelled
             } catch (_: Exception) {
                 state = state.copy(detailLoading = false, detailError = "Could not update event details. Tap Retry.")
             }
         }
+    }
+
+    fun checkedIn(id: Int) {
+        state = state.copy(selected = state.selected?.let { if (it.id == id) it.copy(checkedIn = true) else it },
+            items = state.items.map { if (it.id == id) it.copy(checkedIn = true) else it })
     }
 
     fun close() {

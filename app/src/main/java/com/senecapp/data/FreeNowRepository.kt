@@ -29,7 +29,7 @@ class FreeNowRepository {
                     description = event.optString("description").takeUnless { event.isNull("description") || it.isBlank() },
                     startsAt = event.getString("starts_at"), buildingName = event.optJSONObject("building")?.getString("name"),
                     walkingMinutes = item.optInt("walking_minutes").takeUnless { item.isNull("walking_minutes") },
-                    reasons = List(reasons.length()) { reasons.getString(it) })
+                    reasons = List(reasons.length()) { reasons.getString(it) }, color = event.optJSONObject("group")?.textOrNull("color"))
             }, message = root.optString("message").takeUnless { root.isNull("message") || it.isBlank() })
     }
 

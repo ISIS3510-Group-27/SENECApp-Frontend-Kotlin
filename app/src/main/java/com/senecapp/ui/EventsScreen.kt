@@ -29,9 +29,10 @@ fun EventsScreen(
     LaunchedEffect(Unit) { onLoadFreeNow() }
     DemoView("SENECApp Events", showSampleLabel = false) {
         FreeNowSection(freeNowState, onLoadFreeNow, onDemoNoon, onOpenSuggestedEvent,
-            onLocationConsent, onRetryLocationConsent, onUseLocation, onLocationUnavailable)
-        CampusEventsSection(campusEventsState, onLoadEvents, onOpenEvent, onCloseEvent,
-            checkInState, onStartScan, onScanFailed, onScanCancelled, onCheckIn)
+            onLocationConsent, onRetryLocationConsent, onUseLocation, onLocationUnavailable) {
+            CampusEventsSection(campusEventsState, onLoadEvents, onOpenEvent, onCloseEvent,
+                checkInState, onStartScan, onScanFailed, onScanCancelled, onCheckIn)
+        }
     }
 }
 

@@ -24,6 +24,17 @@ private class HttpApiTransport : ApiTransport {
     }
 
     override suspend fun execute(path: String, method: String, body: String?, token: String, userId: String): ApiResponse =
+        send(path, method, body?.toByteArray(Charsets.UTF_8), "application/json", token, userId)
+
+    override suspend fun upload(path: String, bytes: ByteArray, token: String, userId: String): ApiResponse {
+        val boundary = "senecapp-${UUID.randomUUID()}"
+        val header = "--$boundary\r\nContent-Disposition: form-data; name=\"file\"; filename=\"cover.jpg\"\r\nContent-Type: image/jpeg\r\n\r\n"
+        val body = header.toByteArray() + bytes + "\r\n--$boundary--\r\n".toByteArray()
+        return send(path, "POST", body, "multipart/form-data; boundary=$boundary", token, userId)
+    }
+
+    private suspend fun send(path: String, method: String, body: ByteArray?, contentType: String,
+        token: String, userId: String): ApiResponse =
         withContext(Dispatchers.IO) {
             check(BuildConfig.API_BASE_URL.isNotBlank()) { "API is not configured for this build." }
             val connection = URL("${BuildConfig.API_BASE_URL}$path").openConnection() as HttpURLConnection
@@ -41,8 +52,8 @@ private class HttpApiTransport : ApiTransport {
                 connection.setRequestProperty("X-OS-Version", Build.VERSION.RELEASE)
                 if (body != null) {
                     connection.doOutput = true
-                    connection.setRequestProperty("Content-Type", "application/json")
-                    connection.outputStream.use { it.write(body.toByteArray(Charsets.UTF_8)) }
+                    connection.setRequestProperty("Content-Type", contentType)
+                    connection.outputStream.use { it.write(body) }
                 }
                 val status = connection.responseCode
                 // Server error bodies may contain personal data. They are never logged or displayed.

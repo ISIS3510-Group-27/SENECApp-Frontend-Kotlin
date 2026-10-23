@@ -8,6 +8,8 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.senecapp.data.Organization
 import com.senecapp.data.OrganizationsRepository
+import com.senecapp.data.GroupFilters
+import com.senecapp.data.CampusRepository
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
@@ -24,6 +26,7 @@ data class OrganizationsUiState(
     val searchFiltered: Boolean = false,
     val savingId: Int? = null,
     val saveError: String? = null,
+    val filters: GroupFilters = GroupFilters(),
 )
 
 class OrganizationsViewModel : ViewModel() {
@@ -33,18 +36,32 @@ class OrganizationsViewModel : ViewModel() {
     private var request: Job? = null
     private var detailRequest: Job? = null
     private var saveRequest: Job? = null
+    private var lastQuery = ""
+    private var lastCategory: String? = null
+    private var lastUpcoming = false
+    private var loaded = false
+    fun filter(filters: GroupFilters) {
+        state = state.copy(filters = filters)
+        refresh()
+    }
+    fun refresh() { loaded = false; search(lastQuery, lastCategory, lastUpcoming) }
 
     fun search(query: String, categorySlug: String?, upcomingOnly: Boolean = false) {
+        if (loaded && state.error == null && lastQuery == query && lastCategory == categorySlug && lastUpcoming == upcomingOnly) return
+        lastQuery = query; lastCategory = categorySlug; lastUpcoming = upcomingOnly
         request?.cancel()
         request = viewModelScope.launch {
             state = state.copy(loading = true, items = emptyList(), error = null)
             try {
-                val items = repository.search(query, categorySlug, upcomingOnly)
-                val categories = if (query.isBlank() && categorySlug == null && !upcomingOnly) {
-                    items.map { it.categorySlug to it.category }.distinctBy { it.first }
+                val filters = state.filters
+                val items = repository.search(query, categorySlug, upcomingOnly, filters)
+                val categories = if (state.categories.isEmpty()) {
+                    CampusRepository().categories()
                 } else state.categories
                 state = OrganizationsUiState(loading = false, items = items, categories = categories,
-                    searchFiltered = query.isNotBlank() || categorySlug != null || upcomingOnly)
+                    searchFiltered = query.isNotBlank() || categorySlug != null || upcomingOnly || filters.active,
+                    filters = filters)
+                loaded = true
             } catch (cancelled: CancellationException) {
                 throw cancelled
             } catch (failure: IOException) {

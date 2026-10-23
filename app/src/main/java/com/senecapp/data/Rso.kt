@@ -15,6 +15,9 @@ data class Rso(
     val isMember: Boolean,
     val isSaved: Boolean,
     val color: String?,
+    val imageUrl: String? = null,
+    val verified: Boolean = false,
+    val role: String? = null,
 ) {
     val isPendingReview: Boolean get() = reviewStatus == "pending"
     val isRejected: Boolean get() = reviewStatus == "rejected"
@@ -37,5 +40,8 @@ internal fun parseRso(item: JSONObject): Rso {
         isMember = item.optBoolean("is_member", false),
         isSaved = item.optBoolean("is_saved", false),
         color = item.optString("color").takeIf { it.startsWith("#") },
+        imageUrl = item.textOrNull("image_url"),
+        verified = item.optBoolean("verified"),
+        role = item.textOrNull("my_role"),
     )
 }
