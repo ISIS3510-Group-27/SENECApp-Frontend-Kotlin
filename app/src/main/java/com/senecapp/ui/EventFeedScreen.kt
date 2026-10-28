@@ -47,7 +47,7 @@ internal fun EventFeedScreen(state: CampusEventsUiState, saved: Set<Int>, member
     var searching by remember { mutableStateOf(false) }
     var dateMenu by remember { mutableStateOf(false) }
     var draft by rememberSaveable { mutableStateOf("") }
-    LaunchedEffect(Unit) { if (state.items.isEmpty()) onRefresh() }
+    LaunchedEffect(Unit) { onRefresh() }
     val source = when (filter) {
         "My RSOs" -> state.items.filter { it.groupId in memberIds }
         "Saved" -> state.items.filter { it.id in saved }
@@ -102,10 +102,21 @@ internal fun EventFeedScreen(state: CampusEventsUiState, saved: Set<Int>, member
         if (filter == "Saved") BrandButton("Build itinerary", onItinerary, enabled = events.isNotEmpty(), secondary = true)
         SectionHeading("${events.size} EVENTS")
         if (state.loading) CircularProgressIndicator(color = viewAccent)
+        if (state.fromCache) {
+            val updated = state.cachedAt?.let { timestamp ->
+                java.time.format.DateTimeFormatter.ofPattern("MMM d, h:mm a", java.util.Locale.US)
+                    .format(Instant.ofEpochMilli(timestamp).atZone(campusZone))
+            }
+            ViewText("Showing cached events" + (updated?.let { ". Last updated $it." } ?: ".") +
+                " Connect and refresh for the latest information.", color = viewMuted)
+        }
+        state.refreshWarning?.let { ViewText(it, color = viewMuted) }
         state.error?.let { InfoNotice(it, true) }
-        if (!state.loading && events.isEmpty()) ViewText("No events match these filters.", color = viewMuted)
+        if (!state.loading && state.error == null && events.isEmpty()) ViewText("No events match these filters.", color = viewMuted)
         events.forEach { EventRow(it, it.id in saved, { onSave(it.id) }, { onOpen(it) }) }
-        TextButton(onClick = onRefresh, enabled = !state.loading) { Text("Refresh events", color = viewAccent) }
+        TextButton(onClick = onRefresh, enabled = !state.loading) {
+            Text(if (state.error != null || state.fromCache) "Retry" else "Refresh events", color = viewAccent)
+        }
     }
     if (searching) AlertDialog(onDismissRequest = { searching = false }, containerColor = viewCard,
         title = { ViewText("Search events", true) }, text = { BrandField(draft, { draft = it }, "Title, organization or place") },
