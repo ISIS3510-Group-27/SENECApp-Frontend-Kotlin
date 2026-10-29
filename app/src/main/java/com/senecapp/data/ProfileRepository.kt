@@ -1,5 +1,8 @@
 package com.senecapp.data
 
+import kotlinx.coroutines.CoroutineDispatcher
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import org.json.JSONObject
 
 data class UserProfile(val id: Int, val email: String, val fullName: String?, val program: String?,
@@ -7,9 +10,13 @@ data class UserProfile(val id: Int, val email: String, val fullName: String?, va
 
 internal fun interface ProfileSource { suspend fun load(): UserProfile }
 
-internal class ProfileRepository : ProfileSource {
-    private val api = backendClient()
-    override suspend fun load(): UserProfile = parseProfile(JSONObject(api.request("/me")))
+internal class ProfileRepository(
+    private val api: AuthenticatedApiClient = backendClient(),
+    private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO,
+) : ProfileSource {
+    override suspend fun load(): UserProfile = withContext(ioDispatcher) {
+        parseProfile(JSONObject(api.request("/me")))
+    }
 }
 
 internal fun parseProfile(root: JSONObject): UserProfile {
