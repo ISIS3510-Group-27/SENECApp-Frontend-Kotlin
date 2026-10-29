@@ -14,6 +14,8 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.senecapp.data.UserProfile
+import com.senecapp.analytics.AnalyticsScreen
+import com.senecapp.analytics.TelemetryScreenEffect
 
 @Composable
 fun ProfileScreen(
@@ -27,6 +29,7 @@ fun ProfileScreen(
     onLocation: (Boolean) -> Unit = {}, onSchedule: () -> Unit = {},
     settingsBusy: Boolean = false, externalDetails: Boolean = false,
 ) {
+    TelemetryScreenEffect(AnalyticsScreen.PROFILE, profile != null)
     var comingSoon by remember { mutableStateOf<String?>(null) }
     LaunchedEffect(Unit) { onRefresh() }
     DemoView("Profile", showSampleLabel = false) {
