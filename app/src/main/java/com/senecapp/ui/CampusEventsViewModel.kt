@@ -26,15 +26,18 @@ data class CampusEventsUiState(val loading: Boolean = true, val items: List<Camp
     val fromCache: Boolean = false, val cachedAt: Long? = null, val refreshWarning: String? = null)
 
 class CampusEventsViewModel internal constructor(application: Application,
-    private val repository: CampusEventsSource, private val userId: () -> String?) : AndroidViewModel(application) {
+    private val repository: CampusEventsSource, private val detailsCache: EventDetailsCache,
+    private val userId: () -> String?) : AndroidViewModel(application) {
     constructor(application: Application) : this(application,
-        CampusEventsRepository(CachedEventsStore(application)), FirebaseIdTokenProvider::userId)
+        CampusEventsRepository(CachedEventsStore(application)), EventDetailsMemoryCache(), FirebaseIdTokenProvider::userId)
 
     private val ownerUid = userId()
     var state by mutableStateOf(CampusEventsUiState())
         private set
     private var listRequest: Job? = null
     private var detailRequest: Job? = null
+    private var detailEventId: Int? = null
+    private var attendanceVersion = 0L
     private var listMine: Boolean? = null
     private var hasSnapshot = false
 
@@ -82,6 +85,8 @@ class CampusEventsViewModel internal constructor(application: Application,
     private fun clearSessionData(message: String = "The signed-in account changed. Please retry.") {
         listRequest?.cancel()
         detailRequest?.cancel()
+        detailsCache.clear()
+        detailEventId = null
         hasSnapshot = false
         state = CampusEventsUiState(loading = false, error = message)
     }
@@ -92,25 +97,57 @@ class CampusEventsViewModel internal constructor(application: Application,
 
     fun openId(id: Int, source: String = "events", preview: CampusEvent? = null, requestId: String? = null) {
         detailRequest?.cancel()
+        if (ownerUid == null || userId() != ownerUid) {
+            clearSessionData()
+            return
+        }
+        detailEventId = id
+        val cached = if (source == "events") detailsCache.get(id) else null
+        if (cached != null) {
+            state = state.copy(selected = cached, detailLoading = false, detailError = null)
+            return
+        }
         state = state.copy(selected = preview, detailLoading = true, detailError = null)
         detailRequest = viewModelScope.launch {
             try {
-                val fresh = repository.detail(id, source, requestId)
+                var fresh: CampusEvent
+                do {
+                    val version = attendanceVersion
+                    fresh = repository.detail(id, source, requestId)
+                    currentCoroutineContext().ensureActive()
+                    if (userId() != ownerUid) { clearSessionData(); return@launch }
+                    // A response started before a confirmed check-in may have old attendance counts.
+                } while (version != attendanceVersion)
+                if (source == "events") detailsCache.put(fresh)
                 state = state.copy(selected = fresh, detailLoading = false)
             } catch (cancelled: CancellationException) { throw cancelled
-            } catch (_: Exception) {
+            } catch (failure: Exception) {
+                currentCoroutineContext().ensureActive()
+                if (userId() != ownerUid) { clearSessionData(); return@launch }
+                if (failure is SessionChangedException || failure is SessionRequiredException || invalidFirebaseSession(failure) ||
+                    (failure is ApiHttpException && failure.status in setOf(401, 403))) {
+                    detailsCache.clear()
+                }
                 state = state.copy(detailLoading = false, detailError = "Could not update event details. Tap Retry.")
             }
         }
     }
 
     fun checkedIn(id: Int) {
+        detailsCache.invalidate(id)
+        if (detailEventId == id) attendanceVersion++
         state = state.copy(selected = state.selected?.let { if (it.id == id) it.copy(checkedIn = true) else it },
             items = state.items.map { if (it.id == id) it.copy(checkedIn = true) else it })
     }
 
     fun close() {
         detailRequest?.cancel()
+        detailEventId = null
         state = state.copy(selected = null, detailLoading = false, detailError = null)
+    }
+
+    override fun onCleared() {
+        detailsCache.clear()
+        super.onCleared()
     }
 }
