@@ -46,33 +46,59 @@ Public checks: [database health](https://35-170-175-16.sslip.io/api/v1/health/db
 [Swagger](https://35-170-175-16.sslip.io/docs).
 Loading protected data in Swagger or the app requires a real Firebase ID token; `dev:<email>` does not work.
 
-## Views
+## Sprint 2
 
-- Discover — Camilo Castilla
-- Organization Detail — Camilo Castilla
-- Events — Daniel Vergara
-- Profile — Daniel Vergara
-- Registration and email verification — Daniel Vergara
-- Sign in and password recovery — Camilo Castilla
+### Camilo Castilla
 
-## Features
+| Area | Contribution |
+| --- | --- |
+| Views | Discover, Organization Detail, Sign in and password recovery |
+| Sensor | Ambient light adaptive contrast |
+| Type 2 BQ | BQ3 interaction tracking for suggested events |
+| Context Aware | Free-now event suggestions |
+| Smart Feature | Personalized group recommendations |
+| Authentication | Firebase login, session and password recovery |
+| External Services | Backend organization search |
 
-- Ambient light adaptive contrast (Sensor) — Camilo Castilla
-- BQ3 interaction tracking (Type 2 BQ) — Camilo Castilla
-- Free-now event suggestions (Context Aware) — Camilo Castilla
-- Personalized group recommendations (Smart Feature) — Camilo Castilla
-- Firebase login, session and password recovery (Authentication) — Camilo Castilla
-- Backend organization search (External Services) — Camilo Castilla
+### Daniel Vergara
 
-- Shake to refresh event suggestions (Sensor) — Daniel Vergara
-- Search filter and organization-open tracking for BQ12 (Type 2 BQ) — Daniel Vergara
-- Location aware nearby event suggestions (Context Aware) — Daniel Vergara
-- On-demand profile group recommendation (Smart Feature) — Daniel Vergara
-- Firebase registration and email verification (Authentication) — Daniel Vergara
-- Live upcoming events and membership filter (External Services) — Daniel Vergara
+| Area | Contribution |
+| --- | --- |
+| Views | Events, Profile, Registration and email verification |
+| Sensor | Shake to refresh event suggestions |
+| Type 2 BQ | Search filter and organization-open tracking for BQ12 |
+| Context Aware | Location aware nearby event suggestions |
+| Smart Feature | On-demand profile group recommendation |
+| Authentication | Firebase registration and email verification |
+| External Services | Live upcoming events and membership filter |
 
-## Sprint 3 Features
+### Luciana
 
-- Discover offline storage (Local Storage, Eventual Connectivity and Concurrency) — Camilo Castilla
-- Organization details LRU memory cache (Caching) — Camilo Castilla
-- BQ11 screen load time tracking (Type 1 BQ) — Camilo Castilla
+| Area | Contribution |
+| --- | --- |
+| Views | My RSOs, Create RSO and event check-in |
+| Sensor | QR event check-in with optional location |
+| Smart Feature | Interest suggestions from the RSO name and description |
+| External Services | RSO creation, memberships, saved groups and event check-in through the backend |
+| Local Storage | My RSOs and saved groups snapshots |
+
+## Sprint 3
+
+### Camilo Castilla
+
+| Area | Contribution |
+| --- | --- |
+| Local Storage, Eventual Connectivity and Concurrency | Discover offline storage with saved search results and retry |
+| Caching | Organization details LRU memory cache |
+| Type 1 BQ | BQ11 screen load time tracking for Discover and Organization Detail |
+
+### Daniel Vergara
+
+| Area | Contribution |
+| --- | --- |
+| Local Storage, Eventual Connectivity and Concurrency | Events offline storage with user-specific snapshots and retry |
+| Caching | Event details LRU memory cache |
+| Type 1 BQ | BQ1 error and crash tracking by screen and feature |
+| Analytics Pipeline | Persistent event queue, batched delivery, retries and fatal crash recovery |
+| Concurrency | Profile loading and JSON parsing on the IO dispatcher |
+| UI | Dark theme and navigation updates aligned with the Flutter prototype |
