@@ -49,8 +49,7 @@ internal fun parseClassBlock(root: JSONObject) = ClassBlock(root.optInt("id"), r
     root.getString("start_time").take(5), root.getString("end_time").take(5), root.textOrNull("title").orEmpty(),
     root.optJSONObject("building")?.optInt("id"), root.optJSONObject("building")?.textOrNull("name"))
 
-internal class CampusRepository {
-    private val api = backendClient()
+internal class CampusRepository(private val api: AuthenticatedApiClient = backendClient()) {
     suspend fun categories(): List<Pair<String, String>> = JSONArray(api.request("/categories"))
         .readItems { it.getString("slug") to it.getString("label") }
     suspend fun interests(): List<CampusChoice> = JSONArray(api.request("/interests"))
