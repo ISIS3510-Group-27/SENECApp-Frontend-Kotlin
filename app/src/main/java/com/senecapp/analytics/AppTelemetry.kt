@@ -11,6 +11,7 @@ import android.os.Bundle
 import android.util.Log
 import com.senecapp.BuildConfig
 import kotlinx.coroutines.CoroutineExceptionHandler
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -19,13 +20,15 @@ import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import java.util.UUID
 
-// Lazily initialized by an assigned screen; never touches Firebase or the authenticated API client.
+// Initialized by Application; never touches Firebase or the authenticated API client.
 internal class AppTelemetry private constructor(application: Application) : Application.ActivityLifecycleCallbacks {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO + CoroutineExceptionHandler { _, _ -> })
     private val metadata = AnalyticsMetadata(BuildConfig.VERSION_NAME.take(32),
         "${Build.MANUFACTURER} ${Build.MODEL}".take(100), Build.VERSION.RELEASE.take(50))
     private val preferences by lazy { application.getSharedPreferences("bq1_analytics_outbox", Context.MODE_PRIVATE) }
-    private val pipeline = AnalyticsPipeline(AnalyticsOutboxStore { preferences },
+    private val outbox = AnalyticsOutboxStore { preferences }
+    private val recoveryComplete = CompletableDeferred<Unit>()
+    private val pipeline = AnalyticsPipeline(outbox,
         AnonymousAnalyticsTransport(BuildConfig.API_BASE_URL.trimEnd('/') + "/analytics/events"), log = {
             if (BuildConfig.DEBUG) Log.d("BQ1Analytics", it)
         })
@@ -37,9 +40,20 @@ internal class AppTelemetry private constructor(application: Application) : Appl
         error = { screen, failure -> record(AnalyticsEvent.error(screen, sessionId, metadata, failure)) })
 
     init {
+        val crashes = PendingCrashStore(application.getSharedPreferences("bq1_pending_crashes", Context.MODE_PRIVATE))
+        TelemetryCrashHandler.install(crashes) { if (active) tracker.crashScreen else AnalyticsScreen.UNKNOWN }
+        scope.launch {
+            try {
+                val recovered = crashes.recoverInto(outbox) { AnalyticsEvent.crash(it, sessionId, metadata) }
+                if (BuildConfig.DEBUG && recovered > 0) Log.d("BQ1Analytics", "RECOVERED fatal records=$recovered")
+            } finally {
+                // Release all normal analytics even if storage fails; crash markers remain for next startup.
+                recoveryComplete.complete(Unit)
+            }
+        }
         application.registerActivityLifecycleCallbacks(this)
         scope.launch {
-            while (isActive) { delay(30_000); if (active) pipeline.flush(force = true) }
+            while (isActive) { delay(30_000); if (active) flush() }
         }
         // Registration is IO work; a callback only schedules a flush, it never performs network IO itself.
         scope.launch {
@@ -50,7 +64,7 @@ internal class AppTelemetry private constructor(application: Application) : Appl
                     override fun onCapabilitiesChanged(network: Network, capabilities: NetworkCapabilities) {
                         val available = capabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_VALIDATED) &&
                             capabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET)
-                        if (available && !validated && active) scope.launch { pipeline.flush(force = true) }
+                        if (available && !validated && active) scope.launch { flush() }
                         validated = available
                     }
                     override fun onLost(network: Network) { validated = false }
@@ -70,14 +84,17 @@ internal class AppTelemetry private constructor(application: Application) : Appl
     }
     fun detach(owner: String, rotating: Boolean) = tracker.detach(owner, rotating)
 
-    private fun record(event: AnalyticsEvent) { scope.launch { pipeline.enqueue(event) } }
+    private fun record(event: AnalyticsEvent) {
+        scope.launch { recoveryComplete.await(); pipeline.enqueue(event) }
+    }
+    private suspend fun flush() { recoveryComplete.await(); pipeline.flush(force = true) }
     private fun foreground() {
         if (!active) {
             val elapsed = backgroundAt?.let { android.os.SystemClock.elapsedRealtime() - it } ?: 0L
             if (elapsed >= 30 * 60_000L) sessionId = UUID.randomUUID().toString()
             active = true
             backgroundAt = null
-            scope.launch { pipeline.flush(force = true) }
+            scope.launch { flush() }
         }
     }
 

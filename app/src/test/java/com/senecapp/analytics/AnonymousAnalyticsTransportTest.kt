@@ -8,6 +8,7 @@ import java.io.ByteArrayInputStream
 import java.io.ByteArrayOutputStream
 import java.net.HttpURLConnection
 import java.net.URL
+import java.util.UUID
 
 class AnonymousAnalyticsTransportTest {
     private class Connection(private val status: Int, private val response: String) :
@@ -45,6 +46,21 @@ class AnonymousAnalyticsTransportTest {
         val connection = Connection(202, """{"accepted":0,"duplicates":1}""")
         assertEquals(AnalyticsDelivery.Acknowledged(0, 1),
             AnonymousAnalyticsTransport("https://example.test") { connection }.send(listOf(testEvent())))
+    }
+
+    @Test fun recoveredFatalCrashIsPostedAnonymouslyWithItsOriginalUuidAndTimestamp() = runTest {
+        val crash = PendingCrash(UUID.randomUUID().toString(), "2026-10-29T12:00:00Z", AnalyticsScreen.UNKNOWN, "IllegalStateException")
+        val connection = Connection(202, """{"accepted":1,"duplicates":0}""")
+        val event = AnalyticsEvent.crash(crash, testSession, testMetadata)
+        assertEquals(AnalyticsDelivery.Acknowledged(1, 0),
+            AnonymousAnalyticsTransport("https://example.test/api/v1/analytics/events") { connection }.send(listOf(event)))
+        val posted = JSONObject(connection.body.toString("UTF-8")).getJSONArray("events").getJSONObject(0)
+        assertEquals(crash.id, posted.getString("event_id"))
+        assertEquals(crash.occurredAt, posted.getString("occurred_at"))
+        assertEquals(true, posted.getJSONObject("properties").get("fatal"))
+        assertNull(connection.getRequestProperty("Authorization"))
+        assertNull(connection.getRequestProperty("Cookie"))
+        assertEquals(event, AnalyticsEvent.read(posted))
     }
 
     @Test fun transientHttpStatusesRemainRetryable() = runTest {

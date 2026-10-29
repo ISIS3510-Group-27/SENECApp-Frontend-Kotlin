@@ -9,6 +9,32 @@ class ScreenVisitTrackerTest {
     private val errors = mutableListOf<TelemetryFailure>()
     private val tracker = ScreenVisitTracker(views::add, { _, failure -> errors.add(failure) })
 
+    @Test fun crashAttributionNeedsAVisibleAttachedScreenButNotLoadedContent() {
+        assertEquals(AnalyticsScreen.UNKNOWN, tracker.crashScreen)
+        tracker.attach("owner", "events", AnalyticsScreen.EVENTS, false)
+        assertEquals(AnalyticsScreen.UNKNOWN, tracker.crashScreen)
+        tracker.visible("owner", true)
+        assertEquals(AnalyticsScreen.EVENTS, tracker.crashScreen)
+        assertTrue(views.isEmpty())
+        tracker.visible("owner", false)
+        assertEquals(AnalyticsScreen.UNKNOWN, tracker.crashScreen)
+        tracker.visible("owner", true)
+        tracker.detach("owner", false)
+        assertEquals(AnalyticsScreen.UNKNOWN, tracker.crashScreen)
+        tracker.content("owner", true, null)
+        assertEquals(AnalyticsScreen.UNKNOWN, tracker.crashScreen)
+    }
+
+    @Test fun rotationAndLateDetachCannotMisattributeACrash() {
+        tracker.attach("old", "events", AnalyticsScreen.EVENTS, true)
+        tracker.detach("old", true)
+        assertEquals(AnalyticsScreen.UNKNOWN, tracker.crashScreen)
+        tracker.attach("new", "events", AnalyticsScreen.EVENTS, true)
+        tracker.attach("detail", "event_detail", AnalyticsScreen.EVENT_DETAIL, true)
+        tracker.detach("new", false)
+        assertEquals(AnalyticsScreen.EVENT_DETAIL, tracker.crashScreen)
+    }
+
     @Test fun visibleMeaningfulContentCreatesOneView() {
         tracker.attach("owner", "events", AnalyticsScreen.EVENTS, true)
         assertTrue(views.isEmpty())

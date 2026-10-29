@@ -2,4 +2,7 @@
     <instrumentation
         android:name="com.senecapp.ui.EventDetailsCacheInstrumentation"
         android:targetPackage="com.senecapp" />
+    <instrumentation
+        android:name="com.senecapp.analytics.FatalCrashInstrumentation"
+        android:targetPackage="com.senecapp" />
 </manifest>
