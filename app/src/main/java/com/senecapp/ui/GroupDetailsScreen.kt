@@ -36,6 +36,7 @@ internal fun BackLink(onBack: () -> Unit) {
 internal fun GroupDetailsScreen(home: CampusHomeViewModel, onBack: () -> Unit,
     onChanged: () -> Unit, onEvent: (CampusEvent) -> Unit, onCreateEvent: () -> Unit, onAdminRequests: () -> Unit) {
     val detail = home.detail
+    val canAct = !home.busy && !home.detailFromCache
     var prompt by remember { mutableStateOf<String?>(null) }
     var note by rememberSaveable { mutableStateOf("") }
     val context = LocalContext.current
@@ -47,19 +48,20 @@ internal fun GroupDetailsScreen(home: CampusHomeViewModel, onBack: () -> Unit,
         if (taken) cameraUri?.let { home.uploadCover(Uri.parse(it), onChanged) }
     }
     GroupPage(cover = {
-        if (detail != null) GroupCover(detail.group, onBack, !home.busy) { home.toggleGroupSave(onChanged) }
+        if (detail != null) GroupCover(detail.group, onBack, canAct) { home.toggleGroupSave(onChanged) }
         else Box(Modifier.padding(24.dp)) { BackLink(onBack) }
     }, footer = {
         detail?.group?.takeIf { !it.isPendingReview && !it.isRejected }?.let { group ->
             BrandButton(if (group.isMember) "✓ Joined – Welcome!" else "Join RSO",
-                { note = ""; prompt = "Join RSO" }, enabled = !home.busy && !group.isMember,
+                { note = ""; prompt = "Join RSO" }, enabled = canAct && !group.isMember,
                 secondary = group.isMember, color = organizationColor(group.color))
         }
     }) {
         if (home.detailLoading) CircularProgressIndicator(color = viewAccent)
         if (home.busy) InfoNotice("Updating…")
         home.error?.let { InfoNotice(it, error = true) }
-        if (detail == null && !home.detailLoading) BrandButton("Retry", home::retryGroup)
+        if (home.detailFromCache && !home.detailLoading) InfoNotice("Showing recent details. Connect and retry to update them.")
+        if ((detail == null || home.detailFromCache) && !home.detailLoading) BrandButton("Retry", home::retryGroup)
         detail?.let {
             val group = it.group
             val color = organizationColor(group.color)
@@ -81,14 +83,14 @@ internal fun GroupDetailsScreen(home: CampusHomeViewModel, onBack: () -> Unit,
             if (group.role == "admin" && !group.isPendingReview && !group.isRejected) {
                 SectionHeading("Leader tools")
                 ViewCard {
-                    BrandButton("+ Create event", onCreateEvent, enabled = !home.busy)
-                    BrandButton("Change cover photo", { prompt = "Cover photo" }, enabled = !home.busy, secondary = true)
-                    BrandButton("Admin requests", onAdminRequests, enabled = !home.busy, secondary = true)
+                    BrandButton("+ Create event", onCreateEvent, enabled = canAct)
+                    BrandButton("Change cover photo", { prompt = "Cover photo" }, enabled = canAct, secondary = true)
+                    BrandButton("Admin requests", onAdminRequests, enabled = canAct, secondary = true)
                 }
             } else if (group.isMember && !group.isPendingReview && !group.isRejected) {
                 BrandButton(if (it.adminRequestStatus == "pending") "Admin request pending" else "Request admin access",
                     { note = ""; prompt = "Request admin access" },
-                    enabled = !home.busy && it.adminRequestStatus != "pending", secondary = true)
+                    enabled = canAct && it.adminRequestStatus != "pending", secondary = true)
             }
             SectionHeading("Upcoming events")
             if (it.events.isEmpty()) ViewText("No upcoming events yet.", color = viewMuted)
@@ -98,7 +100,7 @@ internal fun GroupDetailsScreen(home: CampusHomeViewModel, onBack: () -> Unit,
             }
             SectionHeading("Members")
             ViewText("${group.memberCount} members in this community", color = viewMuted)
-            if (group.isMember) TextButton(onClick = { prompt = "Leave RSO" }, enabled = !home.busy) { Text("Leave RSO", color = viewMuted) }
+            if (group.isMember) TextButton(onClick = { prompt = "Leave RSO" }, enabled = canAct) { Text("Leave RSO", color = viewMuted) }
         }
     }
     prompt?.let { title ->
@@ -124,7 +126,7 @@ internal fun GroupDetailsScreen(home: CampusHomeViewModel, onBack: () -> Unit,
             },
             confirmButton = {
                 if (title == "Join RSO" || title == "Leave RSO" || title == "Request admin access")
-                    TextButton(enabled = !home.busy, onClick = {
+                    TextButton(enabled = canAct, onClick = {
                         when (title) {
                             "Join RSO" -> home.join(note, onChanged)
                             "Leave RSO" -> home.leave(onChanged)

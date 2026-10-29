@@ -74,3 +74,4 @@ Loading protected data in Swagger or the app requires a real Firebase ID token; 
 ## Sprint 3 Features
 
 - Discover offline storage (Local Storage, Eventual Connectivity and Concurrency) — Camilo Castilla
+- Organization details LRU memory cache (Caching) — Camilo Castilla
