@@ -75,3 +75,4 @@ Loading protected data in Swagger or the app requires a real Firebase ID token; 
 
 - Discover offline storage (Local Storage, Eventual Connectivity and Concurrency) — Camilo Castilla
 - Organization details LRU memory cache (Caching) — Camilo Castilla
+- BQ11 screen load time tracking (Type 1 BQ) — Camilo Castilla

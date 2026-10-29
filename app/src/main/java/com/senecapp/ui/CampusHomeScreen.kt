@@ -73,7 +73,7 @@ internal fun CampusHomeScreen(uid: String, profile: UserProfile, sensorContrast:
         Box(Modifier.weight(1f)) {
             screenStates.SaveableStateProvider("$selectedTab:$route") {
                 when (parts[0]) {
-                    "group" -> GroupDetailsScreen(home, ::back, ::changed,
+                    "group" -> GroupDetailsScreen(home, parts[1].toInt(), ::back, ::changed,
                         { event(it.id, "group_detail") }, { navigate("createEvent:${parts[1]}") }, { navigate("admins:${parts[1]}") })
                     "event" -> EventDetailsScreen(events.state, parts[1].toInt(), parts[1].toInt() in home.savedEvents,
                         home.schedule, myRsos.state.mine.any { it.id == events.state.selected?.groupId && it.role == "admin" },

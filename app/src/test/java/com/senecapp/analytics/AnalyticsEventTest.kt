@@ -14,6 +14,37 @@ internal fun testEvent(screen: AnalyticsScreen = AnalyticsScreen.EVENTS) =
     AnalyticsEvent.view(screen, testSession, testMetadata) { Instant.parse("2026-10-28T12:00:00Z") }
 
 class AnalyticsEventTest {
+    @Test fun measuredViewsRoundTripWithTheBackendLoadTimeAndDeviceFields() {
+        val event = AnalyticsEvent.view(AnalyticsScreen.DISCOVER, testSession, testMetadata, loadTimeMs = 842)
+        val json = event.json()
+        assertEquals("discover", json.getString("screen"))
+        assertEquals("Test model", json.getString("device_model"))
+        assertEquals("14", json.getString("os_version"))
+        assertEquals(setOf("load_time_ms"), json.getJSONObject("properties").keys().asSequence().toSet())
+        assertEquals(842L, json.getJSONObject("properties").getLong("load_time_ms"))
+        assertEquals(event, AnalyticsEvent.read(JSONObject(json.toString())))
+    }
+
+    @Test fun zeroDurationIsValidButNegativeDurationsAreRejected() {
+        val zero = AnalyticsEvent.view(AnalyticsScreen.GROUP_DETAIL, testSession, testMetadata, loadTimeMs = 0)
+        assertEquals(zero, AnalyticsEvent.read(JSONObject(zero.json().toString())))
+        try {
+            AnalyticsEvent.view(AnalyticsScreen.DISCOVER, testSession, testMetadata, loadTimeMs = -1)
+            fail("Negative duration must be rejected")
+        } catch (_: IllegalArgumentException) { }
+    }
+
+    @Test fun invalidOrSensitiveLoadPropertiesCannotEnterTheOutbox() {
+        for (value in listOf(-1, 1.5, "842", true, JSONObject.NULL)) {
+            val json = testEvent().json().apply { getJSONObject("properties").put("load_time_ms", value) }
+            try { AnalyticsEvent.read(json); fail("Invalid duration must be rejected") } catch (_: Exception) { }
+        }
+        val json = testEvent().json().apply {
+            getJSONObject("properties").put("load_time_ms", 842).put("email", "private")
+        }
+        try { AnalyticsEvent.read(json); fail("Unexpected property must be rejected") } catch (_: Exception) { }
+    }
+
     @Test fun screenViewHasTheExactEnvelopeWithoutInventedLoadTime() {
         val event = testEvent()
         val json = event.json()
@@ -49,7 +80,7 @@ class AnalyticsEventTest {
     }
 
     @Test fun allAssignedScreenNamesAreSupported() {
-        assertEquals(setOf("events", "event_detail", "profile", "registration", "email_verification"),
+        assertEquals(setOf("events", "event_detail", "profile", "registration", "email_verification", "discover", "group_detail"),
             AnalyticsScreen.entries.filter { it != AnalyticsScreen.UNKNOWN }
                 .map { AnalyticsEvent.read(testEvent(it).json()).screen.wireName }.toSet())
     }
@@ -69,7 +100,7 @@ class AnalyticsEventTest {
     @Test fun unexpectedOrSensitivePersistedPropertiesAreRejected() {
         val error = AnalyticsEvent.error(AnalyticsScreen.PROFILE, testSession, testMetadata, TelemetryFailure.from(IOException())!!)
         val invalid = listOf(testEvent().json().put("email", "private"),
-            testEvent().json().put("screen", "discover"),
+            testEvent().json().put("screen", "unsupported_screen"),
             testEvent().json().put("name", "unexpected"),
             testEvent().json().put("event_id", "not-a-uuid"),
             testEvent().json().put("occurred_at", "not-a-date"),

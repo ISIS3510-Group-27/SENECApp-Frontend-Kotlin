@@ -30,6 +30,8 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import com.senecapp.R
+import com.senecapp.analytics.AnalyticsScreen
+import com.senecapp.analytics.TelemetryScreenEffect
 import com.senecapp.data.Organization
 import com.senecapp.data.GroupRecommendation
 import kotlinx.coroutines.delay
@@ -63,6 +65,9 @@ fun DiscoverScreen(
     onFilters: () -> Unit = {}, onSeeAll: () -> Unit = {}, onCreateGroup: () -> Unit = {},
     onRefresh: () -> Unit = {},
 ) {
+    TelemetryScreenEffect(AnalyticsScreen.DISCOVER,
+        meaningful = organizationsState.items.isNotEmpty() || (!organizationsState.loading && organizationsState.error == null),
+        measureLoad = true, loadFailed = organizationsState.error != null)
     val palette = if (highContrast) brightLightPalette else standardPalette
     var query by rememberSaveable { mutableStateOf("") }
     var category by rememberSaveable { mutableStateOf<String?>(null) }

@@ -23,6 +23,8 @@ import androidx.compose.ui.unit.sp
 import androidx.core.content.FileProvider
 import com.senecapp.data.*
 import com.senecapp.R
+import com.senecapp.analytics.AnalyticsScreen
+import com.senecapp.analytics.TelemetryScreenEffect
 import java.io.File
 
 @Composable
@@ -33,9 +35,12 @@ internal fun BackLink(onBack: () -> Unit) {
 }
 
 @Composable
-internal fun GroupDetailsScreen(home: CampusHomeViewModel, onBack: () -> Unit,
+internal fun GroupDetailsScreen(home: CampusHomeViewModel, expectedGroupId: Int, onBack: () -> Unit,
     onChanged: () -> Unit, onEvent: (CampusEvent) -> Unit, onCreateEvent: () -> Unit, onAdminRequests: () -> Unit) {
-    val detail = home.detail
+    val detail = home.detail?.takeIf { it.group.id == expectedGroupId }
+    TelemetryScreenEffect(AnalyticsScreen.GROUP_DETAIL, meaningful = detail != null,
+        identity = expectedGroupId.toString(), measureLoad = true,
+        loadFailed = detail == null && !home.detailLoading && home.error != null)
     val canAct = !home.busy && !home.detailFromCache
     var prompt by remember { mutableStateOf<String?>(null) }
     var note by rememberSaveable { mutableStateOf("") }

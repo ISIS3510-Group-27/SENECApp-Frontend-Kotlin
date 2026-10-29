@@ -14,6 +14,21 @@ import java.io.IOException
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class AnalyticsPipelineTest {
+    @Test fun measuredViewsSurviveOfflineRestartAndReuseTheirOriginalSampleOnRetry() = runTest {
+        val prefs = EventsTestPreferences()
+        val store = AnalyticsOutboxStore { prefs.value }
+        val sample = AnalyticsEvent.view(AnalyticsScreen.GROUP_DETAIL, testSession, testMetadata, loadTimeMs = 842)
+        val offline = Transport()
+        AnalyticsPipeline(store, offline).enqueue(sample)
+        val restored = AnalyticsOutboxStore { prefs.value }
+        assertEquals(sample, restored.read().single().event)
+        val online = Transport().apply { response = { AnalyticsDelivery.Acknowledged(it.size, 0) } }
+        AnalyticsPipeline(restored, online).flush(force = true)
+        assertEquals(sample, online.batches.single().single())
+        assertEquals(842L, online.batches.single().single().loadTimeMs)
+        assertTrue(restored.read().isEmpty())
+    }
+
     private class Transport : AnalyticsTransport {
         val batches = mutableListOf<List<AnalyticsEvent>>()
         var response: suspend (List<AnalyticsEvent>) -> AnalyticsDelivery = { AnalyticsDelivery.Retry }

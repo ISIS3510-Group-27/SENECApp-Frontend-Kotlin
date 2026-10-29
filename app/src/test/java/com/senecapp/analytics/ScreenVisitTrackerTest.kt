@@ -7,7 +7,7 @@ import java.io.IOException
 class ScreenVisitTrackerTest {
     private val views = mutableListOf<AnalyticsScreen>()
     private val errors = mutableListOf<TelemetryFailure>()
-    private val tracker = ScreenVisitTracker(views::add, { _, failure -> errors.add(failure) })
+    private val tracker = ScreenVisitTracker({ screen, _ -> views.add(screen) }, { _, failure -> errors.add(failure) })
 
     @Test fun crashAttributionNeedsAVisibleAttachedScreenButNotLoadedContent() {
         assertEquals(AnalyticsScreen.UNKNOWN, tracker.crashScreen)

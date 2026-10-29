@@ -36,7 +36,10 @@ internal class AppTelemetry private constructor(application: Application) : Appl
     private var backgroundAt: Long? = null
     @Volatile private var active = false
     private val tracker = ScreenVisitTracker(
-        view = { screen -> record(AnalyticsEvent.view(screen, sessionId, metadata)) },
+        view = { screen, loadTimeMs ->
+            if (BuildConfig.DEBUG && loadTimeMs != null) Log.d("BQ11Analytics", "screen=${screen.wireName} load_time_ms=$loadTimeMs")
+            record(AnalyticsEvent.view(screen, sessionId, metadata, loadTimeMs))
+        },
         error = { screen, failure -> record(AnalyticsEvent.error(screen, sessionId, metadata, failure)) })
 
     init {
@@ -73,11 +76,12 @@ internal class AppTelemetry private constructor(application: Application) : Appl
         }
     }
 
-    fun attach(owner: String, key: String, screen: AnalyticsScreen, visible: Boolean) {
+    fun attach(owner: String, key: String, screen: AnalyticsScreen, visible: Boolean, measureLoad: Boolean = false) {
         if (visible) foreground()
-        tracker.attach(owner, key, screen, visible)
+        tracker.attach(owner, key, screen, visible, measureLoad)
     }
-    fun content(owner: String, meaningful: Boolean, failure: TelemetryFailure?) = tracker.content(owner, meaningful, failure)
+    fun content(owner: String, meaningful: Boolean, failure: TelemetryFailure?, loadFailed: Boolean = false) =
+        tracker.content(owner, meaningful, failure, loadFailed)
     fun visible(owner: String, visible: Boolean) {
         if (visible) foreground()
         tracker.visible(owner, visible)
