@@ -11,6 +11,20 @@ import java.net.URL
 import java.util.UUID
 
 class AnonymousAnalyticsTransportTest {
+    @Test fun measuredViewsReachTheSameBatchEndpointWithoutCredentialsOrExtraProperties() = runTest {
+        val connection = Connection(202, """{"accepted":1,"duplicates":0}""")
+        val sample = AnalyticsEvent.view(AnalyticsScreen.DISCOVER, testSession, testMetadata, loadTimeMs = 842)
+        assertEquals(AnalyticsDelivery.Acknowledged(1, 0),
+            AnonymousAnalyticsTransport("https://example.test/api/v1/analytics/events") { connection }.send(listOf(sample)))
+        val posted = JSONObject(connection.body.toString("UTF-8")).getJSONArray("events").getJSONObject(0)
+        assertEquals(sample, AnalyticsEvent.read(posted))
+        assertEquals(842L, posted.getJSONObject("properties").getLong("load_time_ms"))
+        assertEquals("Test model", posted.getString("device_model"))
+        assertEquals("14", posted.getString("os_version"))
+        assertNull(connection.getRequestProperty("Authorization"))
+        assertNull(connection.getRequestProperty("Cookie"))
+    }
+
     private class Connection(private val status: Int, private val response: String) :
         HttpURLConnection(URL("https://example.test/api/v1/analytics/events")) {
         val body = ByteArrayOutputStream()
