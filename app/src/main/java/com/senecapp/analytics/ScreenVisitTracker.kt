@@ -7,6 +7,9 @@ internal class ScreenVisitTracker(private val view: (AnalyticsScreen) -> Unit,
         var visible: Boolean, var meaningful: Boolean = false, var viewed: Boolean = false, var failure: TelemetryFailure? = null)
     private var visit: Visit? = null
     private val reportedErrors = linkedSetOf<String>()
+    // The uncaught handler can run on any thread; it only reads this immutable snapshot.
+    @Volatile var crashScreen: AnalyticsScreen = AnalyticsScreen.UNKNOWN
+        private set
 
     fun attach(owner: String, key: String, screen: AnalyticsScreen, visible: Boolean) {
         val old = visit
@@ -29,9 +32,15 @@ internal class ScreenVisitTracker(private val view: (AnalyticsScreen) -> Unit,
         visit?.takeIf { it.owner == owner }?.let {
             if (rotating) { it.owner = null; it.visible = false } else visit = null
         }
+        updateCrashScreen()
+    }
+
+    private fun updateCrashScreen() {
+        crashScreen = visit?.takeIf { it.visible && it.owner != null }?.screen ?: AnalyticsScreen.UNKNOWN
     }
 
     private fun emit() {
+        updateCrashScreen()
         val current = visit?.takeIf { it.visible && it.owner != null } ?: return
         if (current.meaningful && !current.viewed) { current.viewed = true; view(current.screen) }
         current.failure?.let {

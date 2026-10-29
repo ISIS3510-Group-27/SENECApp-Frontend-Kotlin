@@ -50,7 +50,20 @@ class AnalyticsEventTest {
 
     @Test fun allAssignedScreenNamesAreSupported() {
         assertEquals(setOf("events", "event_detail", "profile", "registration", "email_verification"),
-            AnalyticsScreen.entries.map { AnalyticsEvent.read(testEvent(it).json()).screen.wireName }.toSet())
+            AnalyticsScreen.entries.filter { it != AnalyticsScreen.UNKNOWN }
+                .map { AnalyticsEvent.read(testEvent(it).json()).screen.wireName }.toSet())
+    }
+
+    @Test fun fatalErrorsRoundTripWithOriginalIdentityAndAnUnknownScreen() {
+        val crash = PendingCrash(UUID.randomUUID().toString(), "2026-10-28T12:00:00Z", AnalyticsScreen.UNKNOWN, "OutOfMemoryError")
+        val event = AnalyticsEvent.crash(crash, testSession, testMetadata)
+        assertEquals("app_error", event.name)
+        assertEquals(crash.id, event.id)
+        assertEquals(crash.occurredAt, event.occurredAt)
+        assertEquals("unknown", event.json().getString("screen"))
+        assertEquals(true, event.json().getJSONObject("properties").get("fatal"))
+        assertEquals("unknown", event.json().getJSONObject("properties").getString("feature"))
+        assertEquals(event, AnalyticsEvent.read(JSONObject(event.json().toString())))
     }
 
     @Test fun unexpectedOrSensitivePersistedPropertiesAreRejected() {
