@@ -61,6 +61,7 @@ fun DiscoverScreen(
     externalDetails: Boolean = false,
     unreadCount: Int = 0, onNotifications: () -> Unit = {},
     onFilters: () -> Unit = {}, onSeeAll: () -> Unit = {}, onCreateGroup: () -> Unit = {},
+    onRefresh: () -> Unit = {},
 ) {
     val palette = if (highContrast) brightLightPalette else standardPalette
     var query by rememberSaveable { mutableStateOf("") }
@@ -108,24 +109,32 @@ fun DiscoverScreen(
                 else "${organizationsState.items.size} ORGANIZATIONS", palette)
             Column(Modifier.padding(horizontal = 24.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 organizationsState.saveError?.let { InfoNotice(it, error = true) }
-                when {
-                    organizationsState.loading -> CircularProgressIndicator(Modifier.align(Alignment.CenterHorizontally)
-                        .padding(24.dp).size(24.dp), color = palette.accent, strokeWidth = 2.dp)
-                    organizationsState.error != null -> {
-                        InfoNotice(organizationsState.error, error = true)
-                        TextButton(onClick = { onSearch(query, category, upcomingOnly) }) { Text("Retry", color = palette.accent) }
+                if (organizationsState.loading) CircularProgressIndicator(Modifier.align(Alignment.CenterHorizontally)
+                    .padding(24.dp).size(24.dp), color = palette.accent, strokeWidth = 2.dp)
+                if (organizationsState.fromCache) {
+                    val updated = organizationsState.cachedAt?.let { timestamp ->
+                        java.time.format.DateTimeFormatter.ofPattern("MMM d, h:mm a", java.util.Locale.US)
+                            .format(java.time.Instant.ofEpochMilli(timestamp).atZone(com.senecapp.data.campusZone))
                     }
-                    organizationsState.items.isEmpty() -> {
-                        ViewText("No organizations match", heading = true)
-                        ViewText("Try another category, or a different search term.", color = palette.muted)
+                    ViewText("Showing saved results for this search" + (updated?.let { ". Last updated $it." } ?: ".") +
+                        " Connect and refresh for the latest information.", color = palette.muted)
+                }
+                organizationsState.refreshWarning?.let { ViewText(it, color = palette.muted) }
+                organizationsState.error?.let { InfoNotice(it, error = true) }
+                if (!organizationsState.loading && organizationsState.error == null && organizationsState.items.isEmpty()) {
+                    ViewText("No organizations match", heading = true)
+                    ViewText("Try another category, or a different search term.", color = palette.muted)
+                }
+                organizationsState.items.forEach { organization ->
+                    OrganizationCard(organization, palette, organizationsState.savingId == null,
+                        onSave = { onToggleSave(organization.id) }) {
+                        if (!externalDetails) selectedOrganization = organization
+                        onOpenOrganization(organization.id, fromSearch)
                     }
-                    else -> organizationsState.items.forEach { organization ->
-                        OrganizationCard(organization, palette, organizationsState.savingId == null,
-                            onSave = { onToggleSave(organization.id) }) {
-                            if (!externalDetails) selectedOrganization = organization
-                            onOpenOrganization(organization.id, fromSearch)
-                        }
-                    }
+                }
+                TextButton(onClick = onRefresh, enabled = !organizationsState.loading) {
+                    Text(if (organizationsState.error != null || organizationsState.fromCache) "Retry" else "Refresh organizations",
+                        color = palette.accent)
                 }
             }
         }
