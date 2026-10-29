@@ -14,6 +14,7 @@ import com.senecapp.data.CampusEvent
 import com.senecapp.data.CampusEventsRepository
 import com.senecapp.data.CampusEventsSource
 import com.senecapp.data.isEventsConnectivityFailure
+import com.senecapp.analytics.TelemetryFailure
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.currentCoroutineContext
@@ -23,7 +24,8 @@ import kotlinx.coroutines.launch
 data class CampusEventsUiState(val loading: Boolean = true, val items: List<CampusEvent> = emptyList(),
     val total: Int = 0, val error: String? = null, val selected: CampusEvent? = null,
     val detailLoading: Boolean = false, val detailError: String? = null,
-    val fromCache: Boolean = false, val cachedAt: Long? = null, val refreshWarning: String? = null)
+    val fromCache: Boolean = false, val cachedAt: Long? = null, val refreshWarning: String? = null,
+    val listFailure: TelemetryFailure? = null, val detailFailure: TelemetryFailure? = null)
 
 class CampusEventsViewModel internal constructor(application: Application,
     private val repository: CampusEventsSource, private val detailsCache: EventDetailsCache,
@@ -54,7 +56,7 @@ class CampusEventsViewModel internal constructor(application: Application,
         }
         listMine = mine
         listRequest = viewModelScope.launch {
-            state = state.copy(loading = true, error = null, refreshWarning = null)
+            state = state.copy(loading = true, error = null, refreshWarning = null, listFailure = null)
             try {
                 val result = repository.load(mine)
                 currentCoroutineContext().ensureActive()
@@ -70,13 +72,15 @@ class CampusEventsViewModel internal constructor(application: Application,
                 currentCoroutineContext().ensureActive()
                 when {
                     userId() != ownerUid || failure is SessionChangedException || failure is SessionRequiredException ||
-                        invalidFirebaseSession(failure) || (failure is ApiHttpException && failure.status in setOf(401, 403)) ->
+                        invalidFirebaseSession(failure) || (failure is ApiHttpException && failure.status in setOf(401, 403)) -> {
                         clearSessionData(failure.message ?: "Your session has ended. Sign in again.")
+                        state = state.copy(listFailure = TelemetryFailure.from(failure))
+                    }
                     isEventsConnectivityFailure(failure) && hasSnapshot ->
                         state = state.copy(loading = false, fromCache = true)
                     else -> state = state.copy(loading = false, error = if (isEventsConnectivityFailure(failure))
                         "Cannot reach the backend and no saved events are available. Connect and tap Retry."
-                        else failure.message ?: "Could not load events. Tap Retry.")
+                        else failure.message ?: "Could not load events. Tap Retry.", listFailure = TelemetryFailure.from(failure))
                 }
             }
         }
@@ -104,10 +108,10 @@ class CampusEventsViewModel internal constructor(application: Application,
         detailEventId = id
         val cached = if (source == "events") detailsCache.get(id) else null
         if (cached != null) {
-            state = state.copy(selected = cached, detailLoading = false, detailError = null)
+            state = state.copy(selected = cached, detailLoading = false, detailError = null, detailFailure = null)
             return
         }
-        state = state.copy(selected = preview, detailLoading = true, detailError = null)
+        state = state.copy(selected = preview, detailLoading = true, detailError = null, detailFailure = null)
         detailRequest = viewModelScope.launch {
             try {
                 var fresh: CampusEvent
@@ -128,7 +132,8 @@ class CampusEventsViewModel internal constructor(application: Application,
                     (failure is ApiHttpException && failure.status in setOf(401, 403))) {
                     detailsCache.clear()
                 }
-                state = state.copy(detailLoading = false, detailError = "Could not update event details. Tap Retry.")
+                state = state.copy(detailLoading = false, detailError = "Could not update event details. Tap Retry.",
+                    detailFailure = TelemetryFailure.from(failure))
             }
         }
     }
@@ -143,7 +148,7 @@ class CampusEventsViewModel internal constructor(application: Application,
     fun close() {
         detailRequest?.cancel()
         detailEventId = null
-        state = state.copy(selected = null, detailLoading = false, detailError = null)
+        state = state.copy(selected = null, detailLoading = false, detailError = null, detailFailure = null)
     }
 
     override fun onCleared() {

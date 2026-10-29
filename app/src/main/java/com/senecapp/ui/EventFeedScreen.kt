@@ -32,6 +32,8 @@ import com.senecapp.data.*
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.launch
 import com.senecapp.R
+import com.senecapp.analytics.AnalyticsScreen
+import com.senecapp.analytics.TelemetryScreenEffect
 import com.senecapp.sensors.hasEventLocationPermission
 import com.senecapp.sensors.readSingleEventLocation
 import java.time.Instant
@@ -41,6 +43,9 @@ internal fun EventFeedScreen(state: CampusEventsUiState, saved: Set<Int>, member
     onRefresh: () -> Unit, onSave: (Int) -> Unit, onOpen: (CampusEvent) -> Unit,
     onFreeNow: () -> Unit, onItinerary: () -> Unit,
     onScan: (Int, String, EventCoordinates?) -> Unit = { _, _, _ -> }) {
+    TelemetryScreenEffect(AnalyticsScreen.EVENTS,
+        state.items.isNotEmpty() || (!state.loading && state.error == null),
+        failure = state.listFailure.takeIf { state.error != null })
     var query by rememberSaveable { mutableStateOf("") }
     var filter by rememberSaveable { mutableStateOf("All Events") }
     var date by rememberSaveable { mutableStateOf("Any date") }
@@ -182,6 +187,8 @@ internal fun EventDetailsScreen(state: CampusEventsUiState, eventId: Int, saved:
     admin: Boolean, checkIn: EventCheckInViewModel, onBack: () -> Unit, onRetry: () -> Unit,
     onSave: () -> Unit, onGroup: (Int) -> Unit) {
     val event = state.selected?.takeIf { it.id == eventId }
+    TelemetryScreenEffect(AnalyticsScreen.EVENT_DETAIL, event != null,
+        failure = state.detailFailure.takeIf { state.detailError != null }, identity = eventId.toString())
     val context = LocalContext.current
     var showQr by remember { mutableStateOf(false) }
     DemoView("Event details", showSampleLabel = false, header = { BackLink(onBack) }) {

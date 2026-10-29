@@ -13,13 +13,14 @@ import com.google.firebase.auth.FirebaseAuthWeakPasswordException
 import com.senecapp.auth.RegistrationRepository
 import com.senecapp.auth.normalizedUniversityEmail
 import com.senecapp.auth.registrationError
+import com.senecapp.analytics.TelemetryFailure
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.cancelChildren
 
 data class RegistrationUiState(val configured: Boolean = false, val email: String? = null,
     val verified: Boolean = false, val busy: Boolean = false, val error: String? = null,
-    val message: String? = null, val resendAt: Long = 0)
+    val message: String? = null, val resendAt: Long = 0, val failure: TelemetryFailure? = null)
 
 class RegistrationViewModel(application: Application) : AndroidViewModel(application) {
     private val repository = RegistrationRepository(application)
@@ -31,14 +32,14 @@ class RegistrationViewModel(application: Application) : AndroidViewModel(applica
     fun restoreAccount() {
         if (state.busy) return
         val account = repository.account()
-        state = state.copy(email = account?.email, verified = account?.verified == true, error = null, message = null)
+        state = state.copy(email = account?.email, verified = account?.verified == true, error = null, message = null, failure = null)
     }
 
     fun create(email: String, password: String, confirmation: String) {
         if (state.busy || state.email != null || !state.configured) return
         val validation = registrationError(email, password, confirmation)
-        if (validation != null) { state = state.copy(error = validation); return }
-        state = state.copy(busy = true, error = null, message = null)
+        if (validation != null) { state = state.copy(error = validation, failure = null); return }
+        state = state.copy(busy = true, error = null, message = null, failure = null)
         viewModelScope.launch {
             try {
                 repository.create(normalizedUniversityEmail(email), password)
@@ -48,37 +49,38 @@ class RegistrationViewModel(application: Application) : AndroidViewModel(applica
                     repository.sendVerification()
                     emailSent()
                 } catch (cancelled: CancellationException) { throw cancelled
-                } catch (_: Exception) {
-                    state = state.copy(error = "Account created, but the verification email could not be sent. Tap Resend email.")
+                } catch (failure: Exception) {
+                    state = state.copy(error = "Account created, but the verification email could not be sent. Tap Resend email.",
+                        failure = TelemetryFailure.from(failure))
                 }
             } catch (cancelled: CancellationException) { throw cancelled
             } catch (failure: Exception) {
-                state = state.copy(error = registrationMessage(failure))
+                state = state.copy(error = registrationMessage(failure), failure = TelemetryFailure.from(failure))
             } finally { state = state.copy(busy = false) }
         }
     }
 
     fun resend() {
         if (state.busy || state.verified || state.email == null || SystemClock.elapsedRealtime() < state.resendAt) return
-        state = state.copy(busy = true, error = null, message = null)
+        state = state.copy(busy = true, error = null, message = null, failure = null)
         viewModelScope.launch {
             try { repository.sendVerification(); emailSent()
             } catch (cancelled: CancellationException) { throw cancelled
-            } catch (failure: Exception) { state = state.copy(error = registrationMessage(failure))
+            } catch (failure: Exception) { state = state.copy(error = registrationMessage(failure), failure = TelemetryFailure.from(failure))
             } finally { state = state.copy(busy = false) }
         }
     }
 
     fun checkVerification() {
         if (state.busy || state.email == null || state.verified) return
-        state = state.copy(busy = true, error = null, message = null)
+        state = state.copy(busy = true, error = null, message = null, failure = null)
         viewModelScope.launch {
             try {
                 val verified = repository.checkVerification()
                 state = state.copy(verified = verified, message = if (verified) "Your email is verified."
                     else "Not verified yet. Open the link in your inbox, then check again.")
             } catch (cancelled: CancellationException) { throw cancelled
-            } catch (failure: Exception) { state = state.copy(error = registrationMessage(failure))
+            } catch (failure: Exception) { state = state.copy(error = registrationMessage(failure), failure = TelemetryFailure.from(failure))
             } finally { state = state.copy(busy = false) }
         }
     }

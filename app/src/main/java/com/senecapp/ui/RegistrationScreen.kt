@@ -13,10 +13,14 @@ import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.delay
+import com.senecapp.analytics.AnalyticsScreen
+import com.senecapp.analytics.TelemetryScreenEffect
 
 @Composable
 fun RegistrationScreen(state: RegistrationUiState, onCreate: (String, String, String) -> Unit,
     onResend: () -> Unit, onCheck: () -> Unit, onAnotherAccount: () -> Unit, onClose: () -> Unit) {
+    TelemetryScreenEffect(if (state.email == null) AnalyticsScreen.REGISTRATION else AnalyticsScreen.EMAIL_VERIFICATION,
+        meaningful = true, failure = state.failure.takeIf { state.error != null })
     var email by rememberSaveable { mutableStateOf("") }
     // Passwords are kept only in memory, never saved across recreation or to disk.
     var password by remember { mutableStateOf("") }
