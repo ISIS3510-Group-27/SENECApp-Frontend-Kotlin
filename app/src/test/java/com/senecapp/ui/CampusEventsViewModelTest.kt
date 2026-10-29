@@ -39,7 +39,7 @@ class CampusEventsViewModelTest {
         override suspend fun detail(id: Int, source: String, requestId: String?) = detailResult()
     }
 
-    private fun model(source: Source) = CampusEventsViewModel(Application(), source) { uid }
+    private fun model(source: Source) = CampusEventsViewModel(Application(), source, FakeEventDetailsCache()) { uid }
         .also { store.put("events", it) }
 
     @Test fun loadingThenNetworkSuccessUpdatesSnapshot() = runTest(dispatcher) {
