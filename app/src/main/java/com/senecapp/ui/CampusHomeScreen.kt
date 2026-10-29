@@ -123,6 +123,7 @@ internal fun CampusHomeScreen(uid: String, profile: UserProfile, sensorContrast:
                             onSchedule = { navigate("schedule") }, settingsBusy = home.busy, externalDetails = true)
                         else -> DiscoverScreen(showBottomNavigation = false, highContrast = contrast,
                             organizationsState = organizations.state, onSearch = organizations::search,
+                            onRefresh = organizations::refresh,
                             onOpenOrganization = { id, search -> group(id, if (search) "search" else "explore") },
                             onToggleSave = organizations::toggleSave,
                             recommendationsState = recommendations.state, onLoadRecommendations = recommendations::load,

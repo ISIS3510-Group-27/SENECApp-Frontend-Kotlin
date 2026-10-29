@@ -1,19 +1,21 @@
 package com.senecapp.ui
 
-import android.util.Log
+import android.app.Application
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
-import androidx.lifecycle.ViewModel
+import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
-import com.senecapp.data.Organization
-import com.senecapp.data.OrganizationsRepository
-import com.senecapp.data.GroupFilters
-import com.senecapp.data.CampusRepository
+import com.senecapp.auth.FirebaseIdTokenProvider
+import com.senecapp.auth.SessionChangedException
+import com.senecapp.auth.SessionRequiredException
+import com.senecapp.auth.invalidFirebaseSession
+import com.senecapp.data.*
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.launch
-import java.io.IOException
 
 data class OrganizationsUiState(
     val loading: Boolean = true,
@@ -27,101 +29,134 @@ data class OrganizationsUiState(
     val savingId: Int? = null,
     val saveError: String? = null,
     val filters: GroupFilters = GroupFilters(),
+    val fromCache: Boolean = false,
+    val cachedAt: Long? = null,
+    val refreshWarning: String? = null,
 )
 
-class OrganizationsViewModel : ViewModel() {
-    private val repository = OrganizationsRepository()
+class OrganizationsViewModel internal constructor(application: Application,
+    private val repository: OrganizationsSource, private val userId: () -> String?) : AndroidViewModel(application) {
+    constructor(application: Application) : this(application,
+        OrganizationsRepository(CachedOrganizationsStore(application)), FirebaseIdTokenProvider::userId)
+
+    private val ownerUid = userId()
     var state by mutableStateOf(OrganizationsUiState())
         private set
     private var request: Job? = null
     private var detailRequest: Job? = null
     private var saveRequest: Job? = null
-    private var lastQuery = ""
-    private var lastCategory: String? = null
-    private var lastUpcoming = false
+    private var activeQuery: OrganizationsQuery? = null
     private var loaded = false
+    private var hasSnapshot = false
+
     fun filter(filters: GroupFilters) {
-        state = state.copy(filters = filters)
+        state = state.copy(filters = filters.copy(interests = filters.interests.toSet(), buildings = filters.buildings.toSet()))
         refresh()
     }
-    fun refresh() { loaded = false; search(lastQuery, lastCategory, lastUpcoming) }
+
+    fun refresh() {
+        loaded = false
+        search(activeQuery?.text.orEmpty(), activeQuery?.category, activeQuery?.upcomingOnly ?: false)
+    }
 
     fun search(query: String, categorySlug: String?, upcomingOnly: Boolean = false) {
-        if (loaded && state.error == null && lastQuery == query && lastCategory == categorySlug && lastUpcoming == upcomingOnly) return
-        lastQuery = query; lastCategory = categorySlug; lastUpcoming = upcomingOnly
+        if (!ownsSession()) { clearSessionData(); return }
+        val selection = OrganizationsQuery(query.trim(), categorySlug, upcomingOnly,
+            state.filters.copy(interests = state.filters.interests.toSet(), buildings = state.filters.buildings.toSet()))
+        if (request?.isActive == true && activeQuery == selection) return
+        if (loaded && state.error == null && !state.fromCache && activeQuery == selection) return
         request?.cancel()
+        if (activeQuery != selection) {
+            hasSnapshot = false
+            state = state.copy(items = emptyList(), fromCache = false, cachedAt = null)
+        }
+        activeQuery = selection
         request = viewModelScope.launch {
-            state = state.copy(loading = true, items = emptyList(), error = null)
+            state = state.copy(loading = true, error = null, refreshWarning = null, searchFiltered = selection.filtered)
             try {
-                val filters = state.filters
-                val items = repository.search(query, categorySlug, upcomingOnly, filters)
-                val categories = if (state.categories.isEmpty()) {
-                    CampusRepository().categories()
-                } else state.categories
-                state = OrganizationsUiState(loading = false, items = items, categories = categories,
-                    searchFiltered = query.isNotBlank() || categorySlug != null || upcomingOnly || filters.active,
-                    filters = filters)
+                val result = repository.load(selection)
+                currentCoroutineContext().ensureActive()
+                if (!ownsSession()) { clearSessionData(); return@launch }
+                // A disk fallback must not undo a save confirmed during this session.
+                state = if (result.fromCache && hasSnapshot) state.copy(loading = false, fromCache = true)
+                else state.copy(loading = false, items = result.items, categories = result.categories,
+                    fromCache = result.fromCache, cachedAt = result.cachedAt,
+                    refreshWarning = if (result.cacheWriteFailed) "Organizations loaded, but could not be saved for offline use." else null)
+                hasSnapshot = true
                 loaded = true
-            } catch (cancelled: CancellationException) {
-                throw cancelled
-            } catch (failure: IOException) {
-                Log.e("Organizations", "Organization request failed", failure)
-                state = state.copy(loading = false, error = "Cannot reach the backend. Start it and tap Retry.")
+            } catch (cancelled: CancellationException) { throw cancelled
             } catch (failure: Exception) {
-                state = state.copy(loading = false, error = failure.message ?: "Could not load organizations")
+                currentCoroutineContext().ensureActive()
+                when {
+                    !ownsSession() || isSessionFailure(failure) -> clearSessionData(failure.message)
+                    isOrganizationsConnectivityFailure(failure) && hasSnapshot ->
+                        state = state.copy(loading = false, fromCache = true)
+                    else -> state = state.copy(loading = false, error = if (isOrganizationsConnectivityFailure(failure))
+                        "Cannot reach the backend and no saved results match this search. Connect and tap Retry."
+                        else failure.message ?: "Could not load organizations. Tap Retry.")
+                }
             }
         }
     }
 
     fun open(id: Int, fromSearch: Boolean) {
+        if (!ownsSession()) { clearSessionData(); return }
         detailRequest?.cancel()
         state = state.copy(detailLoading = true, detailDescription = null, detailError = null)
         detailRequest = viewModelScope.launch {
             try {
                 val description = repository.detail(id, fromSearch)
+                currentCoroutineContext().ensureActive()
+                if (!ownsSession()) { clearSessionData(); return@launch }
                 state = state.copy(detailLoading = false, detailDescription = description)
             } catch (cancelled: CancellationException) { throw cancelled
-            } catch (_: Exception) {
-                state = state.copy(detailLoading = false, detailError = "Could not load organization details. Tap Retry.")
+            } catch (failure: Exception) {
+                currentCoroutineContext().ensureActive()
+                if (!ownsSession() || isSessionFailure(failure)) clearSessionData(failure.message)
+                else state = state.copy(detailLoading = false, detailError = "Could not load organization details. Tap Retry.")
             }
         }
     }
 
     fun close() {
         detailRequest?.cancel()
-        state = state.copy(detailLoading = false, detailDescription = null, detailError = null,
-            saveError = null)
+        state = state.copy(detailLoading = false, detailDescription = null, detailError = null, saveError = null)
     }
 
-    /**
-     * BQ13 — the save half of the question. The view half is already recorded by [open], which
-     * sends `entry_point=explore` whenever the list is not filtered by a search.
-     *
-     * The flag flips before the request so the button answers immediately, and flips back if the
-     * backend refuses: both calls are idempotent, so a retry after a rollback is safe.
-     */
     fun toggleSave(id: Int) {
+        if (!ownsSession()) { clearSessionData(); return }
         if (state.savingId != null) return
         val organization = state.items.firstOrNull { it.id == id } ?: return
         val target = !organization.isSaved
-        saveRequest?.cancel()
         state = state.copy(items = state.items.withSaved(id, target), savingId = id, saveError = null)
         saveRequest = viewModelScope.launch {
             try {
                 if (target) repository.save(id) else repository.unsave(id)
+                currentCoroutineContext().ensureActive()
+                if (!ownsSession()) { clearSessionData(); return@launch }
                 state = state.copy(savingId = null)
-            } catch (cancelled: CancellationException) {
-                throw cancelled
+            } catch (cancelled: CancellationException) { throw cancelled
             } catch (failure: Exception) {
-                Log.e("Organizations", "Could not toggle save for group $id", failure)
-                state = state.copy(
-                    items = state.items.withSaved(id, !target),
-                    savingId = null,
-                    saveError = failure.message ?: "Could not update your saved list.",
-                )
+                currentCoroutineContext().ensureActive()
+                if (!ownsSession() || isSessionFailure(failure)) clearSessionData(failure.message)
+                else state = state.copy(items = state.items.withSaved(id, !target), savingId = null,
+                    saveError = failure.message ?: "Could not update your saved list.")
             }
         }
     }
+
+    private fun ownsSession() = ownerUid != null && userId() == ownerUid
+
+    private fun clearSessionData(message: String? = null) {
+        request?.cancel(); detailRequest?.cancel(); saveRequest?.cancel()
+        hasSnapshot = false
+        loaded = false
+        state = OrganizationsUiState(loading = false, error = message ?: "Your session has ended. Sign in again.")
+    }
+
+    private fun isSessionFailure(failure: Exception) = failure is SessionChangedException ||
+        failure is SessionRequiredException || invalidFirebaseSession(failure) ||
+        (failure is ApiHttpException && failure.status in setOf(401, 403))
 
     private fun List<Organization>.withSaved(id: Int, saved: Boolean): List<Organization> =
         map { if (it.id == id) it.copy(isSaved = saved) else it }

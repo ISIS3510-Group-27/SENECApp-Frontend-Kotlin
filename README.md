@@ -70,3 +70,7 @@ Loading protected data in Swagger or the app requires a real Firebase ID token; 
 - On-demand profile group recommendation (Smart Feature) — Daniel Vergara
 - Firebase registration and email verification (Authentication) — Daniel Vergara
 - Live upcoming events and membership filter (External Services) — Daniel Vergara
+
+## Sprint 3 Features
+
+- Discover offline storage (Local Storage, Eventual Connectivity and Concurrency) — Camilo Castilla
