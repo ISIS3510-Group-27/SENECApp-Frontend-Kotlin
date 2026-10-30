@@ -1,14 +1,16 @@
 package com.senecapp.ui
 
+import android.app.Application
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
-import androidx.lifecycle.ViewModel
+import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.senecapp.analytics.TelemetryFailure
 import com.senecapp.data.CheckInResult
 import com.senecapp.data.EventCheckInRepository
 import com.senecapp.data.EventCoordinates
+import com.senecapp.data.networkStatus
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
@@ -22,10 +24,11 @@ data class CheckInUiState(
     val error: String? = null,
     val locationNote: String? = null,
     val failure: TelemetryFailure? = null,
+    val queued: Boolean = false,
 )
 
-class EventCheckInViewModel : ViewModel() {
-    private val repository = EventCheckInRepository()
+class EventCheckInViewModel(application: Application) : AndroidViewModel(application) {
+    private val repository = EventCheckInRepository(application)
     var state by mutableStateOf(CheckInUiState())
         private set
     private var request: Job? = null
@@ -50,17 +53,44 @@ class EventCheckInViewModel : ViewModel() {
         request = viewModelScope.launch {
             state = CheckInUiState(eventId = eventId, submitting = true, locationNote = locationNote)
             try {
+                // Without connection the request is not tried, so the student does not wait for a timeout.
+                if (!repository.online()) { queue(eventId, code, coordinates); return@launch }
                 val result = repository.checkIn(eventId, code, coordinates)
                 state = state.copy(submitting = false, result = result)
             } catch (cancelled: CancellationException) {
                 throw cancelled
-            } catch (failure: IOException) {
-                state = state.copy(submitting = false, error = "Cannot reach the backend. Try again.",
-                    failure = TelemetryFailure.from(failure))
+            } catch (_: IOException) {
+                queue(eventId, code, coordinates)
             } catch (failure: Exception) {
                 state = state.copy(submitting = false, error = failure.message ?: "Could not check in.",
                     failure = TelemetryFailure.from(failure))
             }
+        }
+    }
+
+    // Collected while the user is signed in: when the connection returns, saved check-ins are sent.
+    suspend fun watchPending(onSent: () -> Unit) {
+        networkStatus(getApplication<Application>()).collect { online ->
+            if (online) {
+                try {
+                    if (repository.sendPending() > 0) onSent()
+                } catch (cancelled: CancellationException) {
+                    throw cancelled
+                } catch (_: Exception) {
+                }
+            }
+        }
+    }
+
+    private suspend fun queue(eventId: Int, code: String, coordinates: EventCoordinates?) {
+        try {
+            repository.queue(eventId, code, coordinates)
+            state = state.copy(submitting = false, queued = true)
+        } catch (cancelled: CancellationException) {
+            throw cancelled
+        } catch (failure: Exception) {
+            state = state.copy(submitting = false, error = "Could not save your check-in on this phone. Try again.",
+                failure = TelemetryFailure.from(failure))
         }
     }
 

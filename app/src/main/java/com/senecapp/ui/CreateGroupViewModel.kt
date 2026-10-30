@@ -1,20 +1,27 @@
 package com.senecapp.ui
 
-
+import android.app.Application
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
-import androidx.lifecycle.ViewModel
+import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.senecapp.analytics.TelemetryFailure
+import com.senecapp.auth.FirebaseIdTokenProvider
 import com.senecapp.data.Category
+import com.senecapp.data.CreateGroupDraft
+import com.senecapp.data.CreateGroupDraftFile
 import com.senecapp.data.CreateGroupRepository
 import com.senecapp.data.CreatedGroup
 import com.senecapp.data.Interest
-import com.senecapp.data.InterestInference
+import com.senecapp.data.InterestSuggestionCache
+import com.senecapp.data.networkStatus
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import java.io.IOException
 
 private const val NAME_MINIMUM = 3
@@ -38,6 +45,10 @@ data class CreateGroupUiState(
     val error: String? = null,
     val created: CreatedGroup? = null,
     val failure: TelemetryFailure? = null,
+    val catalogueFromCache: Boolean = false,
+    val queued: Boolean = false,
+    val offline: Boolean = false,
+    val draftRestored: Boolean = false,
 ) {
     val nameError: String?
         get() = if (name.isNotBlank() && name.trim().length < NAME_MINIMUM)
@@ -65,53 +76,71 @@ data class CreateGroupUiState(
                 emailError == null
 }
 
-class CreateGroupViewModel : ViewModel() {
-    private val repository = CreateGroupRepository()
+class CreateGroupViewModel(application: Application) : AndroidViewModel(application) {
+    private val repository = CreateGroupRepository(application)
     var state by mutableStateOf(CreateGroupUiState())
         private set
     private var submitJob: Job? = null
+    private val suggestionCache = InterestSuggestionCache()
+    private var suggestionJob: Job? = null
+    private val draftFile = CreateGroupDraftFile(application)
+    private var draftJob: Job? = null
+    private var draftChecked = false
 
     fun loadCatalogue() {
         viewModelScope.launch {
-            state = state.copy(catalogueLoading = true, catalogueError = null)
+            state = state.copy(catalogueLoading = true, catalogueError = null, failure = null)
+            if (!draftChecked) { draftChecked = true; restoreDraft() }
             try {
-                val categories = repository.categories()
-                val interests = repository.interests()
+                val catalogue = repository.catalogue()
+                // Normalizing the catalogue is CPU work, so it runs on Default, never on Main.
+                withContext(Dispatchers.Default) { suggestionCache.setCatalogue(catalogue.interests) }
                 state = state.copy(
                     catalogueLoading = false,
-                    categories = categories,
-                    interests = interests,
-                ).withSuggestions()
+                    categories = catalogue.categories,
+                    interests = catalogue.interests,
+                    catalogueFromCache = catalogue.fromCache,
+                )
+                scheduleSuggestions(delayMs = 0)
             } catch (cancelled: CancellationException) {
                 throw cancelled
-            } catch (_: IOException) {
+            } catch (failure: IOException) {
                 state = state.copy(
                     catalogueLoading = false,
-                    catalogueError = "Cannot reach the backend. Tap Retry.",
+                    catalogueError = "Cannot reach the backend and the categories are not saved on this phone yet. " +
+                            "Open this form once with internet; after that it also works offline.",
+                    failure = TelemetryFailure.from(failure),
                 )
             } catch (failure: Exception) {
                 state = state.copy(
                     catalogueLoading = false,
                     catalogueError = failure.message ?: "Could not load categories.",
+                    failure = TelemetryFailure.from(failure),
                 )
             }
         }
     }
 
     fun setName(value: String) {
-        state = state.copy(name = value, error = null).withSuggestions()
+        state = state.copy(name = value, error = null)
+        scheduleSuggestions()
+        scheduleDraftSave()
     }
 
     fun setDescription(value: String) {
-        state = state.copy(description = value, error = null).withSuggestions()
+        state = state.copy(description = value, error = null)
+        scheduleSuggestions()
+        scheduleDraftSave()
     }
 
     fun setCategory(slug: String) {
         state = state.copy(categorySlug = slug, error = null)
+        scheduleDraftSave()
     }
 
     fun setContactEmail(value: String) {
         state = state.copy(contactEmail = value, error = null)
+        scheduleDraftSave()
     }
 
     fun toggleInterest(id: Int) {
@@ -122,15 +151,18 @@ class CreateGroupViewModel : ViewModel() {
             else -> selected + id
         }
         state = state.copy(selectedInterestIds = next, interestsEdited = true)
+        scheduleDraftSave()
     }
 
     fun submit() {
         if (!state.canSubmit) return
         val categorySlug = state.categorySlug ?: return
         submitJob?.cancel()
+        draftJob?.cancel()
         submitJob = viewModelScope.launch {
-            state = state.copy(submitting = true, error = null)
+            state = state.copy(submitting = true, error = null, failure = null)
             try {
+                if (!repository.online()) { queue(categorySlug); return@launch }
                 val created = repository.create(
                     name = state.name,
                     categorySlug = categorySlug,
@@ -139,12 +171,14 @@ class CreateGroupViewModel : ViewModel() {
                     tagIds = state.selectedInterestIds.toList(),
                 )
                 state = state.copy(submitting = false, created = created)
+                discardDraft()
             } catch (cancelled: CancellationException) {
                 throw cancelled
             } catch (_: IOException) {
-                state = state.copy(submitting = false, error = "Cannot reach the backend. Try again.")
+                queue(categorySlug)
             } catch (failure: Exception) {
-                state = state.copy(submitting = false, error = failure.message ?: "Could not send your proposal.")
+                state = state.copy(submitting = false, error = failure.message ?: "Could not send your proposal.",
+                    failure = TelemetryFailure.from(failure))
             }
         }
     }
@@ -152,20 +186,89 @@ class CreateGroupViewModel : ViewModel() {
 
     fun reset() {
         submitJob?.cancel()
+        suggestionJob?.cancel()
+        discardDraft()
         state = state.copy(
             name = "", categorySlug = null, description = "", contactEmail = "",
             suggested = emptyList(), selectedInterestIds = emptySet(), interestsEdited = false,
-            submitting = false, error = null, created = null,
+            submitting = false, error = null, created = null, failure = null, queued = false, draftRestored = false,
         )
     }
 
-    private fun CreateGroupUiState.withSuggestions(): CreateGroupUiState {
-        if (interests.isEmpty()) return this
-        val suggestions = InterestInference.suggest(name, description, interests)
-        return copy(
-            suggested = suggestions,
-            selectedInterestIds = if (interestsEdited) selectedInterestIds
-            else suggestions.map { it.id }.toSet(),
-        )
+    private fun scheduleDraftSave() {
+        draftJob?.cancel()
+        val uid = FirebaseIdTokenProvider.userId() ?: return
+        val draft = CreateGroupDraft(state.name, state.categorySlug, state.description, state.contactEmail,
+            state.selectedInterestIds, state.interestsEdited)
+        val empty = draft.name.isBlank() && draft.description.isBlank() && draft.contactEmail.isBlank() &&
+                draft.categorySlug == null
+        draftJob = viewModelScope.launch {
+            delay(250)
+            withContext(Dispatchers.IO) {
+                try { if (empty) draftFile.delete(uid) else draftFile.write(uid, draft) } catch (_: Exception) { }
+            }
+        }
+    }
+
+    private suspend fun restoreDraft() {
+        val uid = FirebaseIdTokenProvider.userId() ?: return
+        if (state.name.isNotBlank() || state.description.isNotBlank()) return
+        val draft = withContext(Dispatchers.IO) { draftFile.read(uid) } ?: return
+        state = state.copy(name = draft.name, categorySlug = draft.categorySlug, description = draft.description,
+            contactEmail = draft.contactEmail, selectedInterestIds = draft.interestIds,
+            interestsEdited = draft.interestsEdited, draftRestored = true)
+    }
+
+    private fun discardDraft() {
+        draftJob?.cancel()
+        val uid = FirebaseIdTokenProvider.userId() ?: return
+        viewModelScope.launch(Dispatchers.IO) {
+            try { draftFile.delete(uid) } catch (_: Exception) { }
+        }
+    }
+
+    suspend fun watchPending(onSent: () -> Unit) {
+        networkStatus(getApplication<Application>()).collect { online ->
+            state = state.copy(offline = !online)
+            if (online) {
+                try {
+                    if (repository.sendPending() > 0) onSent()
+                } catch (cancelled: CancellationException) {
+                    throw cancelled
+                } catch (_: Exception) {
+                    // They stay pending and are tried again on the next reconnection.
+                }
+            }
+        }
+    }
+
+    private suspend fun queue(categorySlug: String) {
+        try {
+            repository.queue(state.name, categorySlug, state.description, state.contactEmail,
+                state.selectedInterestIds.toList())
+            state = state.copy(submitting = false, queued = true)
+            discardDraft()
+        } catch (cancelled: CancellationException) {
+            throw cancelled
+        } catch (failure: Exception) {
+            state = state.copy(submitting = false, error = "Could not save your proposal on this phone. Try again.",
+                failure = TelemetryFailure.from(failure))
+        }
+    }
+
+    private fun scheduleSuggestions(delayMs: Long = 250) {
+        suggestionJob?.cancel()
+        if (state.interests.isEmpty()) return
+        val name = state.name
+        val description = state.description
+        suggestionJob = viewModelScope.launch {
+            delay(delayMs)
+            val suggestions = withContext(Dispatchers.Default) { suggestionCache.suggest(name, description) }
+            state = state.copy(
+                suggested = suggestions,
+                selectedInterestIds = if (state.interestsEdited) state.selectedInterestIds
+                else suggestions.map { it.id }.toSet(),
+            )
+        }
     }
 }

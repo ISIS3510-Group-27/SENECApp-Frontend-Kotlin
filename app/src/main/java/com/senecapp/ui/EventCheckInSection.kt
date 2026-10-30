@@ -51,12 +51,11 @@ internal fun EventCheckInSection(
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val forThisEvent = state.eventId == event.id
-    // The scanner flow only counts as its own screen once a code was sent, so it does not replace the event detail view.
-    if (forThisEvent && (state.submitting || state.result != null || state.error != null)) {
-        TelemetryScreenEffect(AnalyticsScreen.CHECK_IN, meaningful = state.result != null,
+    if (forThisEvent && (state.submitting || state.result != null || state.queued || state.error != null)) {
+        TelemetryScreenEffect(AnalyticsScreen.CHECK_IN, meaningful = state.result != null || state.queued,
             failure = state.failure.takeIf { state.error != null }, identity = event.id.toString())
     }
-    // Held between the permission callback and the request, since the launcher cannot carry it.
+
     var pendingCode by remember { mutableStateOf<String?>(null) }
     var locating by remember { mutableStateOf(false) }
     val currentEvent by rememberUpdatedState(event)
@@ -92,8 +91,6 @@ internal fun EventCheckInSection(
         when {
             payload == null ->
                 onScanFailed(currentEvent.id, "That is not a SENECApp check-in code.")
-            // The event id travels inside the QR, so a poster from another event is caught here
-            // instead of being sent to the backend as a bad code.
             payload.eventId != currentEvent.id ->
                 onScanFailed(currentEvent.id, "That code belongs to a different event.")
             hasEventLocationPermission(context) -> submit(payload.code, withLocation = true)
@@ -149,7 +146,7 @@ internal fun EventCheckInSection(
                     event.cancelled -> "Event cancelled"
                     locating && forThisEvent -> "Getting your location…"
                     state.submitting && forThisEvent -> "Checking in…"
-                    forThisEvent && state.result != null -> "Scan again"
+                    forThisEvent && (state.result != null || state.queued) -> "Scan again"
                     else -> "Scan QR to check in"
                 },
                 fontFamily = viewNunito,
@@ -166,6 +163,13 @@ internal fun EventCheckInSection(
                 color = viewAccent,
             )
             result.distanceM?.let { ViewText("About ${it.toInt()} m from the venue.", color = viewMuted) }
+            state.locationNote?.let { ViewText(it, color = viewMuted) }
+        }
+
+        if (state.queued) {
+            ViewText("Check-in saved. You are offline, so it will be sent automatically when you are back online.",
+                color = viewAccent)
+            ViewText("The backend accepts check-ins until 15 minutes after the event ends.", color = viewMuted)
             state.locationNote?.let { ViewText(it, color = viewMuted) }
         }
 

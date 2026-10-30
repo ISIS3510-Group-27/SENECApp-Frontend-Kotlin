@@ -3,8 +3,6 @@ package com.senecapp.ui
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
-import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.saveable.rememberSaveableStateHolder
@@ -15,8 +13,8 @@ import com.senecapp.data.*
 
 @Composable
 internal fun CampusHomeScreen(uid: String, profile: UserProfile, sensorContrast: Boolean,
-    profileLoading: Boolean, profileError: String?, onRefreshProfile: () -> Unit, onSignOut: () -> Unit,
-    provider: ViewModelProvider) {
+                              profileLoading: Boolean, profileError: String?, onRefreshProfile: () -> Unit, onSignOut: () -> Unit,
+                              provider: ViewModelProvider) {
     val home = remember(provider) { provider[CampusHomeViewModel::class.java] }
     val organizations = remember(provider) { provider[OrganizationsViewModel::class.java] }
     val recommendations = remember(provider) { provider[GroupRecommendationsViewModel::class.java] }
@@ -26,6 +24,7 @@ internal fun CampusHomeScreen(uid: String, profile: UserProfile, sensorContrast:
     val freeNow = remember(provider) { provider[FreeNowViewModel::class.java] }
     val createGroup = remember(provider) { provider[CreateGroupViewModel::class.java] }
     val checkIn = remember(provider) { provider[EventCheckInViewModel::class.java] }
+    val pending = remember(provider) { provider[PendingSubmissionsViewModel::class.java] }
     var selectedTab by rememberSaveable(uid) { mutableStateOf("Discover") }
     var discoverStack by rememberSaveable(uid) { mutableStateOf(listOf("root")) }
     var eventsStack by rememberSaveable(uid) { mutableStateOf(listOf("root")) }
@@ -52,6 +51,10 @@ internal fun CampusHomeScreen(uid: String, profile: UserProfile, sensorContrast:
     val contrast = when (home.outdoorMode) { "On" -> true; "Off" -> false; else -> sensorContrast }
     val screenStates = rememberSaveableStateHolder()
     LaunchedEffect(uid) { home.start(uid); myRsos.load(); events.load(false) }
+    // Proposals saved offline are sent when the connection returns; My RSOs then shows them as pending review.
+    LaunchedEffect(uid) { createGroup.watchPending { myRsos.refresh(); pending.load() } }
+    // Check-ins scanned offline are sent the same way; attendance counts are refreshed after.
+    LaunchedEffect(uid) { checkIn.watchPending { home.refresh(); myRsos.refresh(); pending.load() } }
     LaunchedEffect(route) {
         when (parts[0]) {
             "group" -> home.openGroup(parts[1].toInt(), parts[2], parts.getOrNull(3)?.takeIf { it.isNotBlank() })
@@ -101,6 +104,12 @@ internal fun CampusHomeScreen(uid: String, profile: UserProfile, sensorContrast:
                     }
                     "createEvent" -> CreateEventScreen(home, ::back) { events.load(false); changed(); back() }
                     "admins" -> AdminRequestsScreen(parts[1].toInt(), ::back)
+                    "pending" -> PendingSubmissionsScreen(pending.state, createGroup.state.offline,
+                        { id -> events.state.items.firstOrNull { it.id == id }?.title }, pending::load,
+                        { pending.sendNow(group = it) { myRsos.refresh() } },
+                        { pending.discard(group = it) { myRsos.refresh() } },
+                        { pending.sendNow(checkIn = it) { home.refresh(); myRsos.refresh() } },
+                        { pending.discard(checkIn = it) { myRsos.refresh() } }, ::back)
                     "createGroup" -> CreateGroupScreen(state = createGroup.state, onLoadCatalogue = createGroup::loadCatalogue,
                         onName = createGroup::setName, onCategory = createGroup::setCategory,
                         onDescription = createGroup::setDescription, onContactEmail = createGroup::setContactEmail,
@@ -114,7 +123,7 @@ internal fun CampusHomeScreen(uid: String, profile: UserProfile, sensorContrast:
                                 checkIn.checkIn(id, code, coordinates, if (coordinates == null) "Checked in without location." else null)
                             })
                         "My RSOs" -> MyRSOsScreen(myRsos.state, myRsos::ensureLoaded, { navigate("createGroup") }, home.attended, { group(it) },
-                            myRsos::watchConnection)
+                            myRsos::watchConnection, { navigate("pending") })
                         "Profile" -> ProfileScreen(profile, profileLoading, profileError ?: home.error, onRefreshProfile, onSignOut,
                             profileRecommendations.state, profileRecommendations::load,
                             { group(it, "recommendation", profileRecommendations.state.result?.requestId) },

@@ -23,6 +23,8 @@ data class MyRsosUiState(
     val cachedAt: Long? = null,
     val offline: Boolean = false,
     val failure: TelemetryFailure? = null,
+    val pendingProposals: Int = 0,
+    val pendingCheckIns: Int = 0,
 )
 
 class MyRSOsViewModel(application: Application) : AndroidViewModel(application) {
@@ -46,6 +48,8 @@ class MyRSOsViewModel(application: Application) : AndroidViewModel(application) 
                     fromCache = result.fromCache,
                     cachedAt = result.cachedAt ?: System.currentTimeMillis(),
                     offline = result.fromCache && !repository.online(),
+                    pendingProposals = result.pendingProposals,
+                    pendingCheckIns = result.pendingCheckIns,
                 )
                 loaded = true
             } catch (cancelled: CancellationException) {
@@ -76,3 +80,4 @@ class MyRSOsViewModel(application: Application) : AndroidViewModel(application) 
         }
     }
 }
+

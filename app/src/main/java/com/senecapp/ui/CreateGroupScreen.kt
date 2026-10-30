@@ -13,8 +13,6 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FilterChipDefaults
-import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.Icon
@@ -66,8 +64,19 @@ fun CreateGroupScreen(
             Confirmation(created.name, created.reviewStatus, created.tags, onDone)
             return@DemoView
         }
+        if (state.queued) {
+            QueuedConfirmation(state.name, onDone)
+            return@DemoView
+        }
 
         InfoNotice("Propose a new SENECApp organization. An administrator reviews your proposal before it appears in Discover.")
+        if (state.draftRestored) ViewText("Restored the proposal you had not finished.", color = viewMuted)
+        if (state.offline && state.catalogueError == null) {
+            InfoNotice("You are offline. You can still fill in the form: your proposal is saved on this phone " +
+                    "and sent automatically when you are back online.")
+        } else if (state.catalogueFromCache && !state.catalogueLoading) {
+            InfoNotice("Showing the categories saved on this phone. Connect to update them.")
+        }
 
         when {
             state.catalogueLoading -> ViewText("Loading categories…", color = viewMuted)
@@ -103,7 +112,11 @@ fun CreateGroupScreen(
                     onClick = onSubmit,
                 ) {
                     Text(
-                        if (state.submitting) "Sending…" else "Submit for Review",
+                        when {
+                            state.submitting -> "Sending…"
+                            state.offline -> "Save and send when online"
+                            else -> "Submit for Review"
+                        },
                         fontFamily = viewBricolage,
                         modifier = Modifier.padding(vertical = 4.dp),
                     )
@@ -207,6 +220,24 @@ private fun Confirmation(name: String, reviewStatus: String, tags: List<String>,
             color = viewMuted,
         )
         if (tags.isNotEmpty()) ViewText("Interests attached: ${tags.joinToString(", ")}", color = viewMuted)
+    }
+    Button(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(12.dp),
+        colors = ButtonDefaults.buttonColors(containerColor = viewAccent, contentColor = viewBackground),
+        onClick = onDone,
+    ) {
+        Text("Back to My RSOs", fontFamily = viewNunito, modifier = Modifier.padding(vertical = 4.dp))
+    }
+}
+
+@Composable
+private fun QueuedConfirmation(name: String, onDone: () -> Unit) {
+    ViewCard {
+        ViewText("Proposal saved", heading = true)
+        ViewText(name, color = viewAccent)
+        ViewText("You are offline, so your proposal was saved on this phone. It will be sent automatically " +
+                "when you are back online, and then it shows in My RSOs as pending review.", color = viewMuted)
     }
     Button(
         modifier = Modifier.fillMaxWidth(),
