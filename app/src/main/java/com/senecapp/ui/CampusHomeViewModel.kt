@@ -162,13 +162,7 @@ class CampusHomeViewModel internal constructor(application: Application,
             repository.join(id, motivation, entryPoint, requestId, attemptId); repository.group(id)
         }
     }
-    fun join(motivation: String, onChanged: () -> Unit) {
-        val entryPoint = source
-        val requestId = recommendationId
-        mutateGroup(onChanged) { id ->
-            repository.join(id, motivation, entryPoint, requestId); repository.group(id)
-        }
-    }
+
     fun leave(onChanged: () -> Unit) = mutateGroup(onChanged) { id ->
         repository.leave(id); repository.group(id)
     }

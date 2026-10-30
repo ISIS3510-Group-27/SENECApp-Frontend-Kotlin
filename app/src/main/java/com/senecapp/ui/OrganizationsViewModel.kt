@@ -123,7 +123,7 @@ class OrganizationsViewModel internal constructor(application: Application,
         state = state.copy(detailLoading = false, detailDescription = null, detailError = null, saveError = null)
     }
 
-    fun toggleSave(id: Int,onSaved: () -> Unit = {} ) {
+    fun toggleSave(id: Int, onSaved: () -> Unit = {}) {
         if (!ownsSession()) { clearSessionData(); return }
         if (state.savingId != null) return
         val organization = state.items.firstOrNull { it.id == id } ?: return
@@ -135,6 +135,7 @@ class OrganizationsViewModel internal constructor(application: Application,
                 currentCoroutineContext().ensureActive()
                 if (!ownsSession()) { clearSessionData(); return@launch }
                 state = state.copy(savingId = null)
+                onSaved()
             } catch (cancelled: CancellationException) { throw cancelled
             } catch (failure: Exception) {
                 currentCoroutineContext().ensureActive()

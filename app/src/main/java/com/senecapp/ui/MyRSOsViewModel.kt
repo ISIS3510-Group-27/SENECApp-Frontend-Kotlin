@@ -9,6 +9,7 @@ import androidx.lifecycle.viewModelScope
 import com.senecapp.analytics.TelemetryFailure
 import com.senecapp.data.MyRsosRepository
 import com.senecapp.data.Rso
+import com.senecapp.data.networkStatus
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
@@ -43,7 +44,7 @@ class MyRSOsViewModel(application: Application) : AndroidViewModel(application) 
                     mine = result.mine,
                     saved = result.saved,
                     fromCache = result.fromCache,
-                    cachedAt = result.cachedAt,
+                    cachedAt = result.cachedAt ?: System.currentTimeMillis(),
                     offline = result.fromCache && !repository.online(),
                 )
                 loaded = true
@@ -58,10 +59,20 @@ class MyRSOsViewModel(application: Application) : AndroidViewModel(application) 
                         offline -> "You are offline and nothing is saved yet. Connect and tap Retry."
                         else -> failure.message ?: "Could not load your groups. Tap Retry."
                     },
+                    failure = TelemetryFailure.from(failure),
                 )
             }
         }
     }
 
     fun refresh() = load()
+
+    suspend fun watchConnection() {
+        networkStatus(getApplication<Application>()).collect { online ->
+            val wasOffline = state.offline
+            state = state.copy(offline = !online)
+            // Back online after showing saved data or an error: refresh without asking the user.
+            if (online && wasOffline && (state.fromCache || state.error != null)) load()
+        }
+    }
 }
