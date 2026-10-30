@@ -61,11 +61,13 @@ internal class CampusRepository(private val api: AuthenticatedApiClient = backen
         val rec = requestId?.let { "&rec_request_id=${URLEncoder.encode(it, "UTF-8")}" }.orEmpty()
         return parseGroupDetails(JSONObject(api.request("/groups/$id?entry_point=$source$rec")))
     }
-    suspend fun join(id: Int, motivation: String, source: String, requestId: String?) {
+    suspend fun join(id: Int, motivation: String, source: String, requestId: String?, attemptId: String? = null) {
         val body = JSONObject().put("entry_point", source).put("motivation", motivation.takeIf { it.isNotBlank() })
         requestId?.let { body.put("rec_request_id", it) }
+        attemptId?.let { body.put("join_attempt_id", it) }
         api.request("/groups/$id/join", "POST", body.toString())
     }
+    suspend fun sendAnalytics(batch: String) { api.request("/analytics/events", "POST", batch) }
     suspend fun leave(id: Int) { api.request("/groups/$id/membership", "DELETE") }
     suspend fun save(id: Int, saved: Boolean) {
         api.request("/groups/$id/save" + if (saved) "?source=group_detail" else "", if (saved) "PUT" else "DELETE")

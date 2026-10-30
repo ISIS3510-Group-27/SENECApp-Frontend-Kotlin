@@ -10,6 +10,7 @@ import com.senecapp.auth.SessionChangedException
 import com.senecapp.auth.SessionRequiredException
 import com.senecapp.auth.invalidFirebaseSession
 import android.content.SharedPreferences
+import com.senecapp.analytics.AppTelemetry
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.ensureActive
@@ -148,6 +149,19 @@ class CampusHomeViewModel internal constructor(application: Application,
         }
     }
 
+    fun joinFormOpened(attemptId: String) {
+        if (!ownsSession()) return
+        val id = detail?.group?.takeIf { it.id == groupId }?.id ?: return
+        AppTelemetry.get(getApplication<Application>())?.joinFormOpened(id, attemptId) { repository.sendAnalytics(it) }
+    }
+
+    fun join(motivation: String, onChanged: () -> Unit, attemptId: String? = null) {
+        val entryPoint = source
+        val requestId = recommendationId
+        mutateGroup(onChanged) { id ->
+            repository.join(id, motivation, entryPoint, requestId, attemptId); repository.group(id)
+        }
+    }
     fun join(motivation: String, onChanged: () -> Unit) {
         val entryPoint = source
         val requestId = recommendationId

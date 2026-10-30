@@ -30,24 +30,40 @@ internal data class AnalyticsMetadata(val appVersion: String, val deviceModel: S
 // The envelope has a closed set of fields; callers cannot attach arbitrary properties or PII.
 @ConsistentCopyVisibility
 internal data class AnalyticsEvent private constructor(val id: String, val occurredAt: String,
-    val sessionId: String, val screen: AnalyticsScreen, val metadata: AnalyticsMetadata, val errorType: String? = null,
-    val fatal: Boolean = false, val loadTimeMs: Long? = null) {
-    init { require(loadTimeMs == null || (errorType == null && loadTimeMs >= 0)) }
-    val name: String get() = if (errorType == null) "screen_view" else "app_error"
+                                                       val sessionId: String, val screen: AnalyticsScreen, val metadata: AnalyticsMetadata, val errorType: String? = null,
+                                                       val fatal: Boolean = false, val loadTimeMs: Long? = null,
+                                                       val groupId: Int? = null, val joinAttemptId: String? = null) {
+    init {
+        require(loadTimeMs == null || (errorType == null && loadTimeMs >= 0))
+        require(joinAttemptId == null || (screen == AnalyticsScreen.JOIN_FORM && errorType == null &&
+                loadTimeMs == null && groupId != null && joinAttemptId.length in 1..64))
+    }
+    val name: String get() = when {
+        joinAttemptId != null -> "join_form_opened"
+        errorType == null -> "screen_view"
+        else -> "app_error"
+    }
 
     fun json(): JSONObject = JSONObject().put("event_id", id).put("name", name).put("occurred_at", occurredAt)
         .put("session_id", sessionId).put("screen", screen.wireName).put("app", "kotlin").put("platform", "android")
         .put("app_version", metadata.appVersion).put("device_model", metadata.deviceModel).put("os_version", metadata.osVersion)
         .put("properties", JSONObject().apply {
             loadTimeMs?.let { put("load_time_ms", it) }
+            if (joinAttemptId != null) { put("group_id", groupId); put("join_attempt_id", joinAttemptId) }
             if (errorType != null) { put("feature", screen.feature); put("error_type", errorType); put("fatal", fatal) }
         })
 
     companion object {
         fun view(screen: AnalyticsScreen, sessionId: String, metadata: AnalyticsMetadata,
-            loadTimeMs: Long? = null,
-            clock: () -> Instant = Instant::now): AnalyticsEvent =
+                 loadTimeMs: Long? = null,
+                 clock: () -> Instant = Instant::now): AnalyticsEvent =
             AnalyticsEvent(UUID.randomUUID().toString(), clock().toString(), sessionId, screen, metadata, loadTimeMs = loadTimeMs)
+
+        // BQ7: the same attempt id is sent later in POST /groups/{id}/join, so the funnel can link both steps.
+        fun joinFormOpened(groupId: Int, attemptId: String, sessionId: String, metadata: AnalyticsMetadata,
+                           clock: () -> Instant = Instant::now): AnalyticsEvent =
+            AnalyticsEvent(UUID.randomUUID().toString(), clock().toString(), sessionId, AnalyticsScreen.JOIN_FORM, metadata,
+                groupId = groupId, joinAttemptId = attemptId)
 
         fun error(screen: AnalyticsScreen, sessionId: String, metadata: AnalyticsMetadata, failure: TelemetryFailure): AnalyticsEvent =
             AnalyticsEvent(failure.id, failure.occurredAt, sessionId, screen, metadata, failure.errorType)
@@ -67,6 +83,8 @@ internal data class AnalyticsEvent private constructor(val id: String, val occur
             require(metadata.appVersion.length <= 32 && metadata.deviceModel.length <= 100 && metadata.osVersion.length <= 50)
             val properties = root.getJSONObject("properties")
             var loadTimeMs: Long? = null
+            var groupId: Int? = null
+            var joinAttemptId: String? = null
             val error = when (root.getString("name")) {
                 "screen_view" -> {
                     require(properties.length() == 0 || properties.keys().asSequence().toSet() == setOf("load_time_ms"))
@@ -82,11 +100,18 @@ internal data class AnalyticsEvent private constructor(val id: String, val occur
                     require(properties.get("fatal") is Boolean && properties.getString("feature") == screen.feature)
                     properties.getString("error_type").also { require(it.matches(Regex("[A-Za-z][A-Za-z0-9_$]{0,99}"))) }
                 }
+                "join_form_opened" -> {
+                    require(screen == AnalyticsScreen.JOIN_FORM)
+                    require(properties.keys().asSequence().toSet() == setOf("group_id", "join_attempt_id"))
+                    groupId = (properties.get("group_id") as? Int) ?: error("Invalid group id")
+                    joinAttemptId = properties.getString("join_attempt_id").also { require(UUID.fromString(it).toString() == it) }
+                    null
+                }
                 else -> error("Unsupported analytics event")
             }
             val fatal = error != null && properties.getBoolean("fatal")
             require(screen != AnalyticsScreen.UNKNOWN || fatal)
-            return AnalyticsEvent(id, occurredAt, session, screen, metadata, error, fatal, loadTimeMs)
+            return AnalyticsEvent(id, occurredAt, session, screen, metadata, error, fatal, loadTimeMs, groupId, joinAttemptId)
         }
     }
 }
