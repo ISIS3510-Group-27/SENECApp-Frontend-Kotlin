@@ -5,6 +5,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.senecapp.analytics.TelemetryFailure
 import com.senecapp.data.CheckInResult
 import com.senecapp.data.EventCheckInRepository
 import com.senecapp.data.EventCoordinates
@@ -20,6 +21,7 @@ data class CheckInUiState(
     val result: CheckInResult? = null,
     val error: String? = null,
     val locationNote: String? = null,
+    val failure: TelemetryFailure? = null,
 )
 
 class EventCheckInViewModel : ViewModel() {

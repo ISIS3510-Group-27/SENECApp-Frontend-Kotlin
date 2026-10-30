@@ -125,7 +125,7 @@ internal fun CampusHomeScreen(uid: String, profile: UserProfile, sensorContrast:
                             organizationsState = organizations.state, onSearch = organizations::search,
                             onRefresh = organizations::refresh,
                             onOpenOrganization = { id, search -> group(id, if (search) "search" else "explore") },
-                            onToggleSave = organizations::toggleSave,
+                            onToggleSave = { id -> organizations.toggleSave(id) { myRsos.refresh() } },
                             recommendationsState = recommendations.state, onLoadRecommendations = recommendations::load,
                             onOpenRecommendedGroup = { group(it, "recommendation", recommendations.state.result?.requestId) },
                             externalDetails = true, unreadCount = home.unread, onNotifications = { navigate("notices") },

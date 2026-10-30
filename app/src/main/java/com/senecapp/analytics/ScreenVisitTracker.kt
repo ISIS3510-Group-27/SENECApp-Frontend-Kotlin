@@ -1,5 +1,6 @@
 package com.senecapp.analytics
 
+
 // Main-thread screen attachment is separate from data loading and network delivery.
 internal class ScreenVisitTracker(private val view: (AnalyticsScreen, Long?) -> Unit,
     private val error: (AnalyticsScreen, TelemetryFailure) -> Unit,

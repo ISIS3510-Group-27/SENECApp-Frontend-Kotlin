@@ -123,7 +123,7 @@ class OrganizationsViewModel internal constructor(application: Application,
         state = state.copy(detailLoading = false, detailDescription = null, detailError = null, saveError = null)
     }
 
-    fun toggleSave(id: Int) {
+    fun toggleSave(id: Int,onSaved: () -> Unit = {} ) {
         if (!ownsSession()) { clearSessionData(); return }
         if (state.savingId != null) return
         val organization = state.items.firstOrNull { it.id == id } ?: return
