@@ -54,10 +54,12 @@ class EventCheckInViewModel : ViewModel() {
                 state = state.copy(submitting = false, result = result)
             } catch (cancelled: CancellationException) {
                 throw cancelled
-            } catch (_: IOException) {
-                state = state.copy(submitting = false, error = "Cannot reach the backend. Try again.")
+            } catch (failure: IOException) {
+                state = state.copy(submitting = false, error = "Cannot reach the backend. Try again.",
+                    failure = TelemetryFailure.from(failure))
             } catch (failure: Exception) {
-                state = state.copy(submitting = false, error = failure.message ?: "Could not check in.")
+                state = state.copy(submitting = false, error = failure.message ?: "Could not check in.",
+                    failure = TelemetryFailure.from(failure))
             }
         }
     }

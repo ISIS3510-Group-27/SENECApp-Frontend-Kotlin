@@ -28,17 +28,19 @@ import java.util.TimeZone
 @Composable
 fun MyRSOsScreen(state: MyRsosUiState = MyRsosUiState(loading = false),
                  onLoad: () -> Unit = {}, onCreateGroup: () -> Unit = {},
-                 attended: Int? = null, onOpenGroup: (Int) -> Unit = {}) {
-    TelemetryScreenEffect(AnalyticsScreen.MY_RSOS, meaningful = !state.loading && state.error == null, measureLoad = true,
+                 attended: Int? = null, onOpenGroup: (Int) -> Unit = {},
+                 onWatchConnection: suspend () -> Unit = {}) {
+    TelemetryScreenEffect(AnalyticsScreen.MY_RSOS, meaningful = !state.loading && state.error == null,
         failure = state.failure.takeIf { state.error != null })
     LaunchedEffect(Unit) { onLoad() }
+    LaunchedEffect(Unit) { onWatchConnection() }
     DemoView("My RSOs", showSampleLabel = false) {
         Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
             StatTile(if (state.loading) "—" else state.mine.size.toString(), "Joined", viewPrimary, Modifier.weight(1f))
             StatTile(attended?.toString() ?: "—", "Events attended", viewAccent, Modifier.weight(1f))
             StatTile(com.senecapp.data.semesterLabel(), "This semester", viewTeal, Modifier.weight(1f))
         }
-        if (state.fromCache) OfflineNotice(state)
+        if ((state.fromCache || state.offline) && !state.loading && state.error == null) OfflineNotice(state)
         BrandButton("Propose a new group", onCreateGroup)
         when {
             state.loading -> CircularProgressIndicator(Modifier.align(Alignment.CenterHorizontally).size(24.dp),
@@ -59,7 +61,7 @@ fun MyRSOsScreen(state: MyRsosUiState = MyRsosUiState(loading = false),
 private fun OfflineNotice(state: MyRsosUiState) {
     ViewCard {
         ViewText(if (state.offline) "No connection · showing your last saved list"
-            else "Backend unreachable · showing your last saved list", color = viewAccent)
+        else "Backend unreachable · showing your last saved list", color = viewAccent)
         state.cachedAt?.let { ViewText("Last updated ${cacheTime(it)}", color = viewMuted) }
     }
 }

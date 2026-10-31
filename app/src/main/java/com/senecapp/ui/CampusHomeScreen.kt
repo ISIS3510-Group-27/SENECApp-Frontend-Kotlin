@@ -113,7 +113,8 @@ internal fun CampusHomeScreen(uid: String, profile: UserProfile, sensorContrast:
                                 event(id)
                                 checkIn.checkIn(id, code, coordinates, if (coordinates == null) "Checked in without location." else null)
                             })
-                        "My RSOs" -> MyRSOsScreen(myRsos.state, myRsos::ensureLoaded, { navigate("createGroup") }, home.attended, { group(it) })
+                        "My RSOs" -> MyRSOsScreen(myRsos.state, myRsos::ensureLoaded, { navigate("createGroup") }, home.attended, { group(it) },
+                            myRsos::watchConnection)
                         "Profile" -> ProfileScreen(profile, profileLoading, profileError ?: home.error, onRefreshProfile, onSignOut,
                             profileRecommendations.state, profileRecommendations::load,
                             { group(it, "recommendation", profileRecommendations.state.result?.requestId) },
