@@ -54,8 +54,9 @@ internal fun TelemetryScreenEffect(screen: AnalyticsScreen, meaningful: Boolean,
             try { telemetry?.detach(owner, activity?.isChangingConfigurations == true) } catch (_: Exception) { }
         }
     }
+    val ready = meaningful && (!measureLoad || rendered)
     SideEffect {
-        try { telemetry?.content(owner, meaningful && (!measureLoad || rendered), failure, loadFailed) } catch (_: Exception) { }
+        try { telemetry?.content(owner, ready, failure, loadFailed) } catch (_: Exception) { }
     }
 }
 

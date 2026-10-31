@@ -6,6 +6,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import com.senecapp.analytics.TelemetryFailure
 import com.senecapp.data.MyRsosRepository
 import com.senecapp.data.Rso
 import kotlinx.coroutines.CancellationException
@@ -20,6 +21,7 @@ data class MyRsosUiState(
     val fromCache: Boolean = false,
     val cachedAt: Long? = null,
     val offline: Boolean = false,
+    val failure: TelemetryFailure? = null,
 )
 
 class MyRSOsViewModel(application: Application) : AndroidViewModel(application) {

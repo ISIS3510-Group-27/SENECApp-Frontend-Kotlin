@@ -28,6 +28,8 @@ import com.senecapp.R
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.senecapp.analytics.AnalyticsScreen
+import com.senecapp.analytics.TelemetryScreenEffect
 import com.senecapp.data.Interest
 
 @Composable
@@ -43,6 +45,9 @@ fun CreateGroupScreen(
     onDone: () -> Unit = {},
     onBack: () -> Unit = {},
 ) {
+    TelemetryScreenEffect(AnalyticsScreen.CREATE_GROUP,
+        meaningful = !state.catalogueLoading && state.catalogueError == null,
+        failure = state.failure.takeIf { state.catalogueError != null || state.error != null })
     LaunchedEffect(Unit) { onLoadCatalogue() }
 
     DemoView("Create New RSO", showSampleLabel = false, header = {

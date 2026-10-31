@@ -28,6 +28,8 @@ import androidx.compose.ui.unit.dp
 import com.google.mlkit.vision.codescanner.GmsBarcodeScannerOptions
 import com.google.mlkit.vision.codescanner.GmsBarcodeScanning
 import com.google.mlkit.vision.barcode.common.Barcode
+import com.senecapp.analytics.AnalyticsScreen
+import com.senecapp.analytics.TelemetryScreenEffect
 import com.senecapp.data.CampusEvent
 import com.senecapp.data.EventCoordinates
 import com.senecapp.data.parseCheckInPayload
@@ -49,6 +51,11 @@ internal fun EventCheckInSection(
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val forThisEvent = state.eventId == event.id
+    // The scanner flow only counts as its own screen once a code was sent, so it does not replace the event detail view.
+    if (forThisEvent && (state.submitting || state.result != null || state.error != null)) {
+        TelemetryScreenEffect(AnalyticsScreen.CHECK_IN, meaningful = state.result != null,
+            failure = state.failure.takeIf { state.error != null }, identity = event.id.toString())
+    }
     // Held between the permission callback and the request, since the launcher cannot carry it.
     var pendingCode by remember { mutableStateOf<String?>(null) }
     var locating by remember { mutableStateOf(false) }

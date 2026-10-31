@@ -6,6 +6,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.senecapp.analytics.TelemetryFailure
 import com.senecapp.data.Category
 import com.senecapp.data.CreateGroupRepository
 import com.senecapp.data.CreatedGroup
@@ -36,6 +37,7 @@ data class CreateGroupUiState(
     val submitting: Boolean = false,
     val error: String? = null,
     val created: CreatedGroup? = null,
+    val failure: TelemetryFailure? = null,
 ) {
     val nameError: String?
         get() = if (name.isNotBlank() && name.trim().length < NAME_MINIMUM)

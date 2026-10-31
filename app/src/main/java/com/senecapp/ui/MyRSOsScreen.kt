@@ -1,5 +1,6 @@
 package com.senecapp.ui
 
+
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.border
@@ -16,6 +17,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.senecapp.analytics.AnalyticsScreen
+import com.senecapp.analytics.TelemetryScreenEffect
 import com.senecapp.data.Rso
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -26,6 +29,8 @@ import java.util.TimeZone
 fun MyRSOsScreen(state: MyRsosUiState = MyRsosUiState(loading = false),
                  onLoad: () -> Unit = {}, onCreateGroup: () -> Unit = {},
                  attended: Int? = null, onOpenGroup: (Int) -> Unit = {}) {
+    TelemetryScreenEffect(AnalyticsScreen.MY_RSOS, meaningful = !state.loading && state.error == null, measureLoad = true,
+        failure = state.failure.takeIf { state.error != null })
     LaunchedEffect(Unit) { onLoad() }
     DemoView("My RSOs", showSampleLabel = false) {
         Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
