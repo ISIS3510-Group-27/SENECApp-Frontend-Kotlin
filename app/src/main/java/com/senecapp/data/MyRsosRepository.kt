@@ -21,6 +21,8 @@ data class MyRsos(
 
     val fromCache: Boolean = false,
     val cachedAt: Long? = null,
+    val pendingProposals: Int = 0,
+    val pendingCheckIns: Int = 0,
 )
 
 class MyRsosRepository(context: Context) {
@@ -28,12 +30,14 @@ class MyRsosRepository(context: Context) {
     private val applicationContext = context.applicationContext
     private val cache = MyRsosCache(applicationContext)
     private val local = RsosLocalStore(RSODatabase.get(applicationContext))
+    private val pendingGroups = PendingGroupsStore(RSODatabase.get(applicationContext))
+    private val pendingCheckIns = PendingCheckInsStore(RSODatabase.get(applicationContext))
     // The rows live in SQLite; this preference only remembers when each user last synced.
     private val syncTimes = applicationContext.getSharedPreferences("my_rsos_sync", Context.MODE_PRIVATE)
 
     suspend fun load(): MyRsos = withContext(Dispatchers.IO) {
         val uid = FirebaseIdTokenProvider.userId() ?: throw SessionRequiredException()
-        try {
+        val result = try {
             val started = SystemClock.elapsedRealtime()
             // Both requests run at the same time on IO. If one fails, coroutineScope cancels the other
             // and rethrows the failure, so the offline fallback below still sees the IOException.
@@ -49,7 +53,13 @@ class MyRsosRepository(context: Context) {
         } catch (failure: IOException) {
             readLocal(uid) ?: readLegacy(uid) ?: throw failure
         }
+        result.copy(pendingProposals = pendingCount(uid), pendingCheckIns = pendingCheckInCount(uid))
     }
+
+    private fun pendingCount(uid: String): Int = try { pendingGroups.count(uid) } catch (_: SQLException) { 0 }
+
+    private fun pendingCheckInCount(uid: String): Int = try { pendingCheckIns.count(uid) } catch (_: SQLException) { 0 }
+
     fun clearCache() = cache.clear()
 
     fun online(): Boolean = isOnline(applicationContext)

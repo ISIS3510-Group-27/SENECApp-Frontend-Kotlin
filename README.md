@@ -102,3 +102,15 @@ Loading protected data in Swagger or the app requires a real Firebase ID token; 
 | Analytics Pipeline | Persistent event queue, batched delivery, retries and fatal crash recovery |
 | Concurrency | Profile loading and JSON parsing on the IO dispatcher |
 | UI | Dark theme and navigation updates aligned with the Flutter prototype |
+
+
+### Luciana Bacci T 
+
+| Area | Contribution                                                                                                                                                                       |
+| --- |------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| Local Storage (relational) | SQLite database for My RSOs, the Create RSO catalogue and the offline queues, with foreign keys and transactions                                                                   |
+| Local Storage (key/value and files) | SharedPreferences for the last My RSOs sync time; the unfinished Create RSO form saved as a JSON file                                                                              |
+| Eventual Connectivity | My RSOs from SQLite without connection, Create RSO offline with automatic resend, offline QR check-in and a Pending submissions screen; connection detected with a NetworkCallback |
+| Concurrency | My RSOs and the Create RSO catalogue load their two requests in parallel with async on IO; interest suggestions on Dispatchers.Default with a 250 ms debounce                      |
+| Caching | LruCache (32) for interest suggestions and SparseArray for the interest catalogue                                                                                                  |
+| Type 3 BQ | BQ7 join funnel: join_form_opened with a join_attempt_id shared with the join request                                                                                              | |

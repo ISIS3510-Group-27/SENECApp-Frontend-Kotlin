@@ -1,6 +1,7 @@
 package com.senecapp.ui
 
 
+
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.border
@@ -29,7 +30,7 @@ import java.util.TimeZone
 fun MyRSOsScreen(state: MyRsosUiState = MyRsosUiState(loading = false),
                  onLoad: () -> Unit = {}, onCreateGroup: () -> Unit = {},
                  attended: Int? = null, onOpenGroup: (Int) -> Unit = {},
-                 onWatchConnection: suspend () -> Unit = {}) {
+                 onWatchConnection: suspend () -> Unit = {}, onPending: () -> Unit = {}) {
     TelemetryScreenEffect(AnalyticsScreen.MY_RSOS, meaningful = !state.loading && state.error == null,
         failure = state.failure.takeIf { state.error != null })
     LaunchedEffect(Unit) { onLoad() }
@@ -41,6 +42,14 @@ fun MyRSOsScreen(state: MyRsosUiState = MyRsosUiState(loading = false),
             StatTile(com.senecapp.data.semesterLabel(), "This semester", viewTeal, Modifier.weight(1f))
         }
         if ((state.fromCache || state.offline) && !state.loading && state.error == null) OfflineNotice(state)
+        val waiting = state.pendingProposals + state.pendingCheckIns
+        if (waiting > 0) {
+            InfoNotice(if (waiting == 1) "1 submission saved on this phone will be sent when you are back online."
+            else "$waiting submissions saved on this phone will be sent when you are back online.")
+        }
+        TextButton(onClick = onPending) {
+            Text(if (waiting > 0) "View pending submissions ($waiting)" else "Pending submissions", color = viewAccent)
+        }
         BrandButton("Propose a new group", onCreateGroup)
         when {
             state.loading -> CircularProgressIndicator(Modifier.align(Alignment.CenterHorizontally).size(24.dp),
