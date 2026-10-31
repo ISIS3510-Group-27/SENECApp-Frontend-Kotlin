@@ -182,6 +182,14 @@ class GroupDetailsMemoryViewModelTest {
         advanceUntilIdle()
     }
 
+    @Test fun joinSendsTheAttemptIdOfTheOpenedForm() = runTest(dispatcher) {
+        val vm = model()
+        vm.openGroup(1); advanceUntilIdle()
+        vm.join("", {}, "3b2f1c4e-8d7a-4f61-9a55-0c9b8e7d6a51"); advanceUntilIdle()
+        val json = org.json.JSONObject(requests.single { it.method == "POST" }.body!!)
+        assertEquals("3b2f1c4e-8d7a-4f61-9a55-0c9b8e7d6a51", json.getString("join_attempt_id"))
+    }
+
     @Test fun joinAndLeaveInvalidateAndKeepJoinAttribution() = runTest(dispatcher) {
         val cache = Cache()
         val vm = model(cache)

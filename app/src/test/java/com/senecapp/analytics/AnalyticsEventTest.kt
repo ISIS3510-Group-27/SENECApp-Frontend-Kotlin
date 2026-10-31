@@ -80,9 +80,21 @@ class AnalyticsEventTest {
     }
 
     @Test fun allAssignedScreenNamesAreSupported() {
-        assertEquals(setOf("events", "event_detail", "profile", "registration", "email_verification", "discover", "group_detail"),
+        assertEquals(setOf("events", "event_detail", "profile", "registration", "email_verification", "discover", "group_detail",
+            "my_rsos", "create_group", "check_in_scanner", "join_form"),
             AnalyticsScreen.entries.filter { it != AnalyticsScreen.UNKNOWN }
                 .map { AnalyticsEvent.read(testEvent(it).json()).screen.wireName }.toSet())
+    }
+
+    @Test fun joinFormOpenedRoundTripsWithTheBackendProperties() {
+        val attempt = UUID.randomUUID().toString()
+        val event = AnalyticsEvent.joinFormOpened(7, attempt, testSession, testMetadata) { Instant.parse("2026-10-28T12:00:00Z") }
+        val json = event.json()
+        assertEquals("join_form_opened", json.getString("name"))
+        assertEquals("join_form", json.getString("screen"))
+        assertEquals(7, json.getJSONObject("properties").getInt("group_id"))
+        assertEquals(attempt, json.getJSONObject("properties").getString("join_attempt_id"))
+        assertEquals(event, AnalyticsEvent.read(JSONObject(json.toString())))
     }
 
     @Test fun fatalErrorsRoundTripWithOriginalIdentityAndAnUnknownScreen() {
@@ -105,7 +117,9 @@ class AnalyticsEventTest {
             testEvent().json().put("event_id", "not-a-uuid"),
             testEvent().json().put("occurred_at", "not-a-date"),
             error.json().apply { getJSONObject("properties").put("message", "private") },
-            error.json().apply { getJSONObject("properties").put("fatal", "false") })
+            error.json().apply { getJSONObject("properties").put("fatal", "false") },
+            AnalyticsEvent.joinFormOpened(7, UUID.randomUUID().toString(), testSession, testMetadata).json()
+                .apply { getJSONObject("properties").put("motivation", "private") })
         invalid.forEach { root ->
             try { AnalyticsEvent.read(root); fail("Expected invalid event rejection") } catch (_: Exception) { }
         }

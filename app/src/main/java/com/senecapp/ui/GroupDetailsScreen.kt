@@ -26,6 +26,7 @@ import com.senecapp.R
 import com.senecapp.analytics.AnalyticsScreen
 import com.senecapp.analytics.TelemetryScreenEffect
 import java.io.File
+import java.util.UUID
 
 @Composable
 internal fun BackLink(onBack: () -> Unit) {
@@ -36,7 +37,7 @@ internal fun BackLink(onBack: () -> Unit) {
 
 @Composable
 internal fun GroupDetailsScreen(home: CampusHomeViewModel, expectedGroupId: Int, onBack: () -> Unit,
-    onChanged: () -> Unit, onEvent: (CampusEvent) -> Unit, onCreateEvent: () -> Unit, onAdminRequests: () -> Unit) {
+                                onChanged: () -> Unit, onEvent: (CampusEvent) -> Unit, onCreateEvent: () -> Unit, onAdminRequests: () -> Unit) {
     val detail = home.detail?.takeIf { it.group.id == expectedGroupId }
     TelemetryScreenEffect(AnalyticsScreen.GROUP_DETAIL, meaningful = detail != null,
         identity = expectedGroupId.toString(), measureLoad = true,
@@ -44,6 +45,7 @@ internal fun GroupDetailsScreen(home: CampusHomeViewModel, expectedGroupId: Int,
     val canAct = !home.busy && !home.detailFromCache
     var prompt by remember { mutableStateOf<String?>(null) }
     var note by rememberSaveable { mutableStateOf("") }
+    var joinAttemptId by rememberSaveable { mutableStateOf<String?>(null) }
     val context = LocalContext.current
     var cameraUri by rememberSaveable { mutableStateOf<String?>(null) }
     val gallery = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) {
@@ -58,7 +60,11 @@ internal fun GroupDetailsScreen(home: CampusHomeViewModel, expectedGroupId: Int,
     }, footer = {
         detail?.group?.takeIf { !it.isPendingReview && !it.isRejected }?.let { group ->
             BrandButton(if (group.isMember) "✓ Joined – Welcome!" else "Join RSO",
-                { note = ""; prompt = "Join RSO" }, enabled = canAct && !group.isMember,
+                {
+                    note = ""
+                    joinAttemptId = UUID.randomUUID().toString().also(home::joinFormOpened)
+                    prompt = "Join RSO"
+                }, enabled = canAct && !group.isMember,
                 secondary = group.isMember, color = organizationColor(group.color))
         }
     }) {
@@ -133,7 +139,7 @@ internal fun GroupDetailsScreen(home: CampusHomeViewModel, expectedGroupId: Int,
                 if (title == "Join RSO" || title == "Leave RSO" || title == "Request admin access")
                     TextButton(enabled = canAct, onClick = {
                         when (title) {
-                            "Join RSO" -> home.join(note, onChanged)
+                            "Join RSO" -> home.join(note, onChanged, joinAttemptId)
                             "Leave RSO" -> home.leave(onChanged)
                             else -> home.requestAdmin(note)
                         }
@@ -145,7 +151,7 @@ internal fun GroupDetailsScreen(home: CampusHomeViewModel, expectedGroupId: Int,
 
 @Composable
 private fun GroupPage(cover: @Composable () -> Unit, footer: @Composable () -> Unit,
-    content: @Composable ColumnScope.() -> Unit) {
+                      content: @Composable ColumnScope.() -> Unit) {
     Box(Modifier.fillMaxSize().background(viewBackground).windowInsetsPadding(WindowInsets.safeDrawing)) {
         Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
             cover()

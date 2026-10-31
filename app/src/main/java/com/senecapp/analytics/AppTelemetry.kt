@@ -18,6 +18,8 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
+import org.json.JSONArray
+import org.json.JSONObject
 import java.util.UUID
 
 // Initialized by Application; never touches Firebase or the authenticated API client.
@@ -87,6 +89,21 @@ internal class AppTelemetry private constructor(application: Application) : Appl
         tracker.visible(owner, visible)
     }
     fun detach(owner: String, rotating: Boolean) = tracker.detach(owner, rotating)
+
+
+
+    fun joinFormOpened(groupId: Int, attemptId: String, sendSignedIn: suspend (String) -> Unit) {
+        val event = AnalyticsEvent.joinFormOpened(groupId, attemptId, sessionId, metadata)
+        scope.launch {
+            try {
+                sendSignedIn(JSONObject().put("events", JSONArray().put(event.json())).toString())
+                if (BuildConfig.DEBUG) Log.d("BQ7Analytics", "ACK join_form_opened group=$groupId attempt=$attemptId")
+            } catch (_: Exception) {
+                if (BuildConfig.DEBUG) Log.d("BQ7Analytics", "signed-in send failed, using the queue")
+                record(event)
+            }
+        }
+    }
 
     private fun record(event: AnalyticsEvent) {
         scope.launch { recoveryComplete.await(); pipeline.enqueue(event) }
