@@ -28,6 +28,7 @@ fun ProfileScreen(
     outdoorMode: String = "Auto", onOutdoorMode: (String) -> Unit = {},
     onLocation: (Boolean) -> Unit = {}, onSchedule: () -> Unit = {},
     settingsBusy: Boolean = false, externalDetails: Boolean = false,
+    onCompareRecommendations: (() -> Unit)? = null,
 ) {
     TelemetryScreenEffect(AnalyticsScreen.PROFILE, profile != null)
     var comingSoon by remember { mutableStateOf<String?>(null) }
@@ -96,7 +97,7 @@ fun ProfileScreen(
                 TextButton(onClick = onSignOut) { Text("Sign out", color = viewPrimary) }
             }
             ProfileRecommendationSection(recommendationsState, onLoadRecommendations,
-                onOpenRecommendedGroup, onJoinRecommendedGroup, externalDetails)
+                onOpenRecommendedGroup, onJoinRecommendedGroup, externalDetails, onCompareRecommendations)
         }
         error?.let { InfoNotice(it, error = true) }
     }

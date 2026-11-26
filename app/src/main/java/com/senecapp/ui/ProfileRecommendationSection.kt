@@ -16,7 +16,8 @@ import java.net.URI
 /** Reuses the server's trained ranking; does not invent a second client-side model. */
 @Composable
 internal fun ProfileRecommendationSection(state: GroupRecommendationsUiState, onLoad: () -> Unit,
-    onOpen: (Int) -> Unit, onJoin: (Int) -> Unit, externalDetails: Boolean = false) {
+    onOpen: (Int) -> Unit, onJoin: (Int) -> Unit, externalDetails: Boolean = false,
+    onCompare: (() -> Unit)? = null) {
     var requested by remember { mutableStateOf(false) }
     var selected by remember { mutableStateOf<GroupRecommendation?>(null) }
     ViewCard {
@@ -26,6 +27,9 @@ internal fun ProfileRecommendationSection(state: GroupRecommendationsUiState, on
             requested = true
             onLoad()
         }) { Text("Find a group for me", color = viewAccent) }
+        if (onCompare != null) {
+            TextButton(onClick = onCompare) { Text("Compare recommended groups", color = viewAccent) }
+        }
         if (requested) {
             when {
                 state.loading -> ViewText("Finding a match…", color = viewMuted)

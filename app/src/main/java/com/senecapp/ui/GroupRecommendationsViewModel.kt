@@ -45,6 +45,10 @@ open class GroupRecommendationsViewModel internal constructor(
     private var loadRequest: Job? = null
     private val ownerUid = if (cache != null) userId() else null
 
+    internal fun loadForComparison() {
+        if (loadRequest?.isActive != true) load()
+    }
+
     fun load() {
         loadRequest?.cancel()
         loadRequest = viewModelScope.launch {
