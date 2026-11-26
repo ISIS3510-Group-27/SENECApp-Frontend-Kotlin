@@ -1,0 +1,84 @@
+{
+  "frames": {
+    "open": {
+      "windows": 3,
+      "rendered": 558,
+      "janky": 3,
+      "raw_frames": 246,
+      "jank_pct": 0.5376344086021505,
+      "average_ms": 19.475899674796747,
+      "p95_ms": 13.07034425,
+      "max_ms": 1100.597693,
+      "cpu_mean_ms": 2253.3333333333335,
+      "wall_mean_s": 6.724333333336593
+    },
+    "scroll-before": {
+      "windows": 9,
+      "rendered": 620,
+      "janky": 14,
+      "raw_frames": 310,
+      "jank_pct": 2.2580645161290325,
+      "average_ms": 18.115821338709676,
+      "p95_ms": 42.14098035000001,
+      "max_ms": 77.291325,
+      "cpu_mean_ms": 761.1111111111111,
+      "wall_mean_s": 1.0085555555577028
+    },
+    "apply-filter": {
+      "windows": 3,
+      "rendered": 46,
+      "janky": 0,
+      "raw_frames": 7,
+      "jank_pct": 0.0,
+      "average_ms": 169.08784285714285,
+      "p95_ms": 207.4484993,
+      "max_ms": 208.452485,
+      "cpu_mean_ms": 336.6666666666667,
+      "wall_mean_s": 5.244666666675282
+    },
+    "clear-filter": {
+      "windows": 3,
+      "rendered": 6,
+      "janky": 3,
+      "raw_frames": 3,
+      "jank_pct": 50.0,
+      "average_ms": 336.70264000000003,
+      "p95_ms": 345.2135892,
+      "max_ms": 346.595794,
+      "cpu_mean_ms": 433.3333333333333,
+      "wall_mean_s": 6.228999999992084
+    },
+    "scroll-after": {
+      "windows": 9,
+      "rendered": 1038,
+      "janky": 3,
+      "raw_frames": 512,
+      "jank_pct": 0.28901734104046245,
+      "average_ms": 12.0440368359375,
+      "p95_ms": 24.410108249999997,
+      "max_ms": 29.261929,
+      "cpu_mean_ms": 912.2222222222222,
+      "wall_mean_s": 0.9775555555501746
+    }
+  },
+  "memory": {
+    "before": {
+      "pss_kib": 177279,
+      "rss_kib": 264693.3333333333,
+      "dalvik_heap_alloc_kib": 5170.666666666667,
+      "native_heap_alloc_kib": 35588
+    },
+    "opened": {
+      "pss_kib": 174636.33333333334,
+      "rss_kib": 265926.6666666667,
+      "dalvik_heap_alloc_kib": 6062.666666666667,
+      "native_heap_alloc_kib": 37359.333333333336
+    },
+    "after": {
+      "pss_kib": 163962.66666666666,
+      "rss_kib": 257864,
+      "dalvik_heap_alloc_kib": 7141.333333333333,
+      "native_heap_alloc_kib": 21905
+    }
+  }
+}
