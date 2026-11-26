@@ -144,7 +144,17 @@ private fun ProtectedContent(uid: String, profile: UserProfile, highContrast: Bo
     // Requests and account-specific screen state are cleared when this signed-in session closes.
     val owner = remember(uid) { object : ViewModelStoreOwner { override val viewModelStore = ViewModelStore() } }
     DisposableEffect(owner) { onDispose { owner.viewModelStore.clear() } }
-    // AndroidViewModelFactory also builds the plain ViewModels; MyRSOsViewModel needs the Application.
-    val provider = remember(owner) { ViewModelProvider(owner, ViewModelProvider.AndroidViewModelFactory(application)) }
+    val provider = remember(owner) {
+        val defaultFactory = ViewModelProvider.AndroidViewModelFactory(application)
+        ViewModelProvider(owner, object : ViewModelProvider.Factory {
+            override fun <T : ViewModel> create(modelClass: Class<T>): T {
+                // This ViewModel uses app storage but inherits from a plain ViewModel.
+                if (modelClass == ProfileRecommendationsViewModel::class.java) {
+                    return requireNotNull(modelClass.cast(ProfileRecommendationsViewModel(application)))
+                }
+                return defaultFactory.create(modelClass)
+            }
+        })
+    }
     CampusHomeScreen(uid, profile, highContrast, profileLoading, profileError, onRefreshProfile, onSignOut, provider)
 }
