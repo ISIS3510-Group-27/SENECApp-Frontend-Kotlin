@@ -115,6 +115,17 @@ class OrganizationsViewModelTest {
         response.complete(fresh); advanceUntilIdle()
     }
 
+    @Test fun filtersWithoutTextUseSearchAttributionAndClearingThemRestoresExplore() = runTest(dispatcher) {
+        val source = Source().apply { result = { fresh } }
+        val vm = model(source)
+        vm.search("", null); advanceUntilIdle()
+        assertFalse(vm.state.searchFiltered)
+        vm.filter(GroupFilters(verified = true)); advanceUntilIdle()
+        assertTrue(vm.state.searchFiltered)
+        vm.filter(GroupFilters()); advanceUntilIdle()
+        assertFalse(vm.state.searchFiltered)
+    }
+
     @Test fun olderCancelledQueryCannotOverwriteNewerResults() = runTest(dispatcher) {
         val late = CompletableDeferred<OrganizationsResult>()
         val newer = fresh.copy(items = listOf(group.copy(id = 8)))

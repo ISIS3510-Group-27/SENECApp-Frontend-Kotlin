@@ -207,6 +207,18 @@ class GroupDetailsMemoryViewModelTest {
         assertFalse(cache.items.containsKey(1)); assertEquals(2, callbacks)
     }
 
+    @Test fun joiningFromSearchKeepsAttributionInTheJoinRequest() = runTest(dispatcher) {
+        val vm = model()
+        vm.openGroup(1, "search"); advanceUntilIdle()
+        vm.join("", {}); advanceUntilIdle()
+        assertEquals(listOf(
+            "/groups/1?entry_point=search", "/groups/1/join", "/groups/1?entry_point=direct"
+        ), requests.map { it.path })
+        val body = org.json.JSONObject(requests.single { it.method == "POST" }.body!!)
+        assertEquals("search", body.getString("entry_point"))
+        assertFalse(body.has("rec_request_id"))
+    }
+
     @Test fun eventCreationAndAdminRequestInvalidateGroupData() = runTest(dispatcher) {
         val cache = Cache()
         val vm = model(cache)
