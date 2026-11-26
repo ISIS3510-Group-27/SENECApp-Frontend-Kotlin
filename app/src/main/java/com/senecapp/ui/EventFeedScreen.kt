@@ -11,6 +11,8 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
@@ -62,66 +64,81 @@ internal fun EventFeedScreen(state: CampusEventsUiState, saved: Set<Int>, member
     val now = java.time.ZonedDateTime.now(campusZone)
     val weekEnd = now.toLocalDate().plusDays(7).atStartOfDay(campusZone)
     val week = state.items.count { campusDate(it.startsAt)?.isBefore(weekEnd) == true }
-    DemoView("SENECApp Events", showSampleLabel = false, header = {
-        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            Column(Modifier.weight(1f)) { SectionHeading("UPCOMING")
-                Text("SENECApp Events", color = viewForeground, fontFamily = viewBricolage, fontSize = 24.sp, fontWeight = FontWeight.ExtraBold) }
-            FeedAction(R.drawable.ic_search, "Search events") { draft = query; searching = true }
-            Box {
-                FeedAction(R.drawable.ic_filter, "Filter by date") { dateMenu = true }
-                DropdownMenu(dateMenu, { dateMenu = false }) {
-                    listOf("Any date", "Today", "Next 7 days").forEach { choice ->
-                        DropdownMenuItem(text = { Text(choice) }, onClick = { date = choice; dateMenu = false })
+    val scanEvent = eventScanAction(onScan)
+    LazyColumn(
+        modifier = Modifier.fillMaxSize().background(viewBackground)
+            .windowInsetsPadding(WindowInsets.safeDrawing).imePadding(),
+        contentPadding = PaddingValues(start = 24.dp, end = 24.dp, top = 8.dp, bottom = 32.dp),
+        verticalArrangement = Arrangement.spacedBy(20.dp),
+    ) {
+        item(key = "header") {
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Column(Modifier.weight(1f)) { SectionHeading("UPCOMING")
+                    Text("SENECApp Events", color = viewForeground, fontFamily = viewBricolage, fontSize = 24.sp, fontWeight = FontWeight.ExtraBold) }
+                FeedAction(R.drawable.ic_search, "Search events") { draft = query; searching = true }
+                Box {
+                    FeedAction(R.drawable.ic_filter, "Filter by date") { dateMenu = true }
+                    DropdownMenu(dateMenu, { dateMenu = false }) {
+                        listOf("Any date", "Today", "Next 7 days").forEach { choice ->
+                            DropdownMenuItem(text = { Text(choice) }, onClick = { date = choice; dateMenu = false })
+                        }
                     }
                 }
-            }
-            ScanEventButton(onScan)
-        }
-    }) {
-        Row(Modifier.fillMaxWidth().background(viewCard, RoundedCornerShape(16.dp))
-            .border(1.dp, viewAccent.copy(alpha = .35f), RoundedCornerShape(16.dp)).clickable(onClick = onFreeNow).padding(16.dp),
-            verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(14.dp)) {
-            Icon(painterResource(R.drawable.ic_location), null, tint = viewAccent, modifier = Modifier.size(36.dp))
-            Column(Modifier.weight(1f)) {
-                Text("Free right now?", color = viewForeground, fontFamily = viewBricolage, fontSize = 15.sp, fontWeight = FontWeight.ExtraBold)
-                Text("Events nearby that fit before your next class", color = viewMuted, fontFamily = viewNunito, fontSize = 12.sp)
-            }
-            Icon(painterResource(R.drawable.ic_chevron), null, tint = viewMuted, modifier = Modifier.size(20.dp))
-        }
-        Column(Modifier.fillMaxWidth().background(Brush.linearGradient(listOf(viewPrimary, Color(0xFFFF6B35))), RoundedCornerShape(24.dp)).padding(18.dp),
-            verticalArrangement = Arrangement.spacedBy(4.dp)) {
-            Text("THIS WEEK", color = viewAccent, fontFamily = viewNunito, fontSize = 11.sp, fontWeight = FontWeight.ExtraBold, letterSpacing = 1.8.sp)
-            Text("$week events from your\ncampus organizations", color = Color.White, fontFamily = viewBricolage, fontSize = 18.sp, fontWeight = FontWeight.ExtraBold)
-            val dateFormat = java.time.format.DateTimeFormatter.ofPattern("MMM d", java.util.Locale.US)
-            Text("${now.format(dateFormat)} – ${weekEnd.minusDays(1).format(dateFormat)}", color = Color.White.copy(alpha = .8f), fontFamily = viewNunito, fontSize = 12.sp)
-        }
-        Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            listOf("All Events", "My RSOs", "Saved").forEach {
-                FilterChip(filter == it, { filter = it }, label = { Text(it) })
+                FeedAction(R.drawable.ic_qr_scan, "Scan check-in code", scanEvent)
             }
         }
-        if (query.isNotBlank() || date != "Any date") ViewCard {
-            ViewText(listOf(query.takeIf { it.isNotBlank() }, date.takeUnless { it == "Any date" }).filterNotNull().joinToString(" · "))
-            TextButton(onClick = { query = ""; date = "Any date" }) { Text("Clear filters", color = viewAccent) }
-        }
-        if (filter == "Saved") BrandButton("Build itinerary", onItinerary,
-            enabled = events.isNotEmpty() || hasSavedItinerary, secondary = true)
-        SectionHeading("${events.size} EVENTS")
-        if (state.loading) CircularProgressIndicator(color = viewAccent)
-        if (state.fromCache) {
-            val updated = state.cachedAt?.let { timestamp ->
-                java.time.format.DateTimeFormatter.ofPattern("MMM d, h:mm a", java.util.Locale.US)
-                    .format(Instant.ofEpochMilli(timestamp).atZone(campusZone))
+        item(key = "controls") {
+            Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(20.dp)) {
+                Row(Modifier.fillMaxWidth().background(viewCard, RoundedCornerShape(16.dp))
+                    .border(1.dp, viewAccent.copy(alpha = .35f), RoundedCornerShape(16.dp)).clickable(onClick = onFreeNow).padding(16.dp),
+                    verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(14.dp)) {
+                    Icon(painterResource(R.drawable.ic_location), null, tint = viewAccent, modifier = Modifier.size(36.dp))
+                    Column(Modifier.weight(1f)) {
+                        Text("Free right now?", color = viewForeground, fontFamily = viewBricolage, fontSize = 15.sp, fontWeight = FontWeight.ExtraBold)
+                        Text("Events nearby that fit before your next class", color = viewMuted, fontFamily = viewNunito, fontSize = 12.sp)
+                    }
+                    Icon(painterResource(R.drawable.ic_chevron), null, tint = viewMuted, modifier = Modifier.size(20.dp))
+                }
+                Column(Modifier.fillMaxWidth().background(Brush.linearGradient(listOf(viewPrimary, Color(0xFFFF6B35))), RoundedCornerShape(24.dp)).padding(18.dp),
+                    verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    Text("THIS WEEK", color = viewAccent, fontFamily = viewNunito, fontSize = 11.sp, fontWeight = FontWeight.ExtraBold, letterSpacing = 1.8.sp)
+                    Text("$week events from your\ncampus organizations", color = Color.White, fontFamily = viewBricolage, fontSize = 18.sp, fontWeight = FontWeight.ExtraBold)
+                    val dateFormat = java.time.format.DateTimeFormatter.ofPattern("MMM d", java.util.Locale.US)
+                    Text("${now.format(dateFormat)} – ${weekEnd.minusDays(1).format(dateFormat)}", color = Color.White.copy(alpha = .8f), fontFamily = viewNunito, fontSize = 12.sp)
+                }
+                Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    listOf("All Events", "My RSOs", "Saved").forEach {
+                        FilterChip(filter == it, { filter = it }, label = { Text(it) })
+                    }
+                }
+                if (query.isNotBlank() || date != "Any date") ViewCard {
+                    ViewText(listOf(query.takeIf { it.isNotBlank() }, date.takeUnless { it == "Any date" }).filterNotNull().joinToString(" · "))
+                    TextButton(onClick = { query = ""; date = "Any date" }) { Text("Clear filters", color = viewAccent) }
+                }
+                if (filter == "Saved") BrandButton("Build itinerary", onItinerary,
+                    enabled = events.isNotEmpty() || hasSavedItinerary, secondary = true)
+                SectionHeading("${events.size} EVENTS")
+                if (state.loading) CircularProgressIndicator(color = viewAccent)
+                if (state.fromCache) {
+                    val updated = state.cachedAt?.let { timestamp ->
+                        java.time.format.DateTimeFormatter.ofPattern("MMM d, h:mm a", java.util.Locale.US)
+                            .format(Instant.ofEpochMilli(timestamp).atZone(campusZone))
+                    }
+                    ViewText("Showing cached events" + (updated?.let { ". Last updated $it." } ?: ".") +
+                        " Connect and refresh for the latest information.", color = viewMuted)
+                }
+                state.refreshWarning?.let { ViewText(it, color = viewMuted) }
+                state.error?.let { InfoNotice(it, true) }
+                if (!state.loading && state.error == null && events.isEmpty()) ViewText("No events match these filters.", color = viewMuted)
             }
-            ViewText("Showing cached events" + (updated?.let { ". Last updated $it." } ?: ".") +
-                " Connect and refresh for the latest information.", color = viewMuted)
         }
-        state.refreshWarning?.let { ViewText(it, color = viewMuted) }
-        state.error?.let { InfoNotice(it, true) }
-        if (!state.loading && state.error == null && events.isEmpty()) ViewText("No events match these filters.", color = viewMuted)
-        events.forEach { EventRow(it, it.id in saved, { onSave(it.id) }, { onOpen(it) }) }
-        TextButton(onClick = onRefresh, enabled = !state.loading) {
-            Text(if (state.error != null || state.fromCache) "Retry" else "Refresh events", color = viewAccent)
+        items(events, key = { it.id }, contentType = { "event" }) { event ->
+            EventRow(event, event.id in saved, { onSave(event.id) }, { onOpen(event) })
+        }
+        item(key = "refresh") {
+            TextButton(onClick = onRefresh, enabled = !state.loading) {
+                Text(if (state.error != null || state.fromCache) "Retry" else "Refresh events", color = viewAccent)
+            }
         }
     }
     if (searching) AlertDialog(onDismissRequest = { searching = false }, containerColor = viewCard,
@@ -139,12 +156,13 @@ private fun FeedAction(icon: Int, label: String, onClick: () -> Unit) {
 }
 
 @Composable
-private fun ScanEventButton(onScan: (Int, String, EventCoordinates?) -> Unit) {
+private fun eventScanAction(onScan: (Int, String, EventCoordinates?) -> Unit): () -> Unit {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     var busy by remember { mutableStateOf(false) }
     fun failed(message: String) { busy = false; Toast.makeText(context, message, Toast.LENGTH_LONG).show() }
-    FeedAction(R.drawable.ic_qr_scan, "Scan check-in code") {
+    // Keep the scan alive if the lazy list removes the header from composition.
+    return {
         val activity = context.findActivity()
         if (!busy && activity != null) {
             busy = true
