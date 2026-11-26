@@ -42,7 +42,7 @@ import java.time.Instant
 internal fun EventFeedScreen(state: CampusEventsUiState, saved: Set<Int>, memberIds: Set<Int>,
     onRefresh: () -> Unit, onSave: (Int) -> Unit, onOpen: (CampusEvent) -> Unit,
     onFreeNow: () -> Unit, onItinerary: () -> Unit,
-    onScan: (Int, String, EventCoordinates?) -> Unit = { _, _, _ -> }) {
+    hasSavedItinerary: Boolean = false, onScan: (Int, String, EventCoordinates?) -> Unit = { _, _, _ -> }) {
     TelemetryScreenEffect(AnalyticsScreen.EVENTS,
         state.items.isNotEmpty() || (!state.loading && state.error == null),
         failure = state.listFailure.takeIf { state.error != null })
@@ -104,7 +104,8 @@ internal fun EventFeedScreen(state: CampusEventsUiState, saved: Set<Int>, member
             ViewText(listOf(query.takeIf { it.isNotBlank() }, date.takeUnless { it == "Any date" }).filterNotNull().joinToString(" · "))
             TextButton(onClick = { query = ""; date = "Any date" }) { Text("Clear filters", color = viewAccent) }
         }
-        if (filter == "Saved") BrandButton("Build itinerary", onItinerary, enabled = events.isNotEmpty(), secondary = true)
+        if (filter == "Saved") BrandButton("Build itinerary", onItinerary,
+            enabled = events.isNotEmpty() || hasSavedItinerary, secondary = true)
         SectionHeading("${events.size} EVENTS")
         if (state.loading) CircularProgressIndicator(color = viewAccent)
         if (state.fromCache) {
@@ -194,6 +195,10 @@ internal fun EventDetailsScreen(state: CampusEventsUiState, eventId: Int, saved:
     DemoView("Event details", showSampleLabel = false, header = { BackLink(onBack) }) {
         if (state.detailLoading) CircularProgressIndicator(color = viewAccent)
         state.detailError?.let { InfoNotice(it, true); BrandButton("Retry", onRetry) }
+        if (state.detailFromDisk) {
+            InfoNotice("Saved event details. Times and attendance may have changed. Reconnect and refresh to check in.")
+            BrandButton("Retry", onRetry)
+        }
         event?.let {
             val checkedIn = it.checkedIn || (checkIn.state.eventId == it.id && checkIn.state.result != null)
             val opens = campusDate(it.startsAt)?.minusMinutes(30)?.toInstant()
@@ -226,7 +231,7 @@ internal fun EventDetailsScreen(state: CampusEventsUiState, eventId: Int, saved:
             if (conflictsWithClass(it, schedule)) InfoNotice("This event overlaps with a class in your schedule.")
             when {
                 checkedIn -> InfoNotice("✓ You have already checked in to this event.")
-                !it.cancelled && !state.detailLoading && state.detailError == null -> {
+                !it.cancelled && !state.detailFromDisk && !state.detailLoading && state.detailError == null -> {
                     when {
                         opens != null && now < opens -> ViewText("Check-in opens ${eventLabel(opens.atZone(campusZone).toOffsetDateTime().toString())}.", color = viewMuted)
                         closes != null && now > closes -> ViewText("Check-in for this event has closed.", color = viewMuted)
@@ -235,7 +240,7 @@ internal fun EventDetailsScreen(state: CampusEventsUiState, eventId: Int, saved:
                     }
                 }
             }
-            if (admin && !it.cancelled) BrandButton("Show check-in QR", { showQr = true })
+            if (admin && !it.cancelled && !state.detailFromDisk) BrandButton("Show check-in QR", { showQr = true })
             it.description?.let { text -> SectionHeading("About"); ViewText(text) }
             SectionHeading("Hosted by")
             Box(Modifier.fillMaxWidth().clickable { onGroup(it.groupId) }) {
@@ -243,7 +248,7 @@ internal fun EventDetailsScreen(state: CampusEventsUiState, eventId: Int, saved:
             }
         }
     }
-    if (showQr && event != null) CheckInQr(event.id) { showQr = false }
+    if (showQr && event != null && !state.detailFromDisk) CheckInQr(event.id) { showQr = false }
 }
 
 @Composable
@@ -279,14 +284,27 @@ private fun CheckInQr(eventId: Int, onClose: () -> Unit) {
 
 @Composable
 internal fun ItineraryScreen(events: List<CampusEvent>, saved: Set<Int>, onSave: (Int) -> Unit,
-    onOpen: (CampusEvent) -> Unit, onBack: () -> Unit) {
+    onOpen: (CampusEvent) -> Unit, onBack: () -> Unit, savedPlan: List<CampusEvent>? = null,
+    saveMessage: String? = null, onSavePlan: (List<CampusEvent>) -> Unit = {}) {
     val plan = buildItinerary(events.filter { it.id in saved })
     val skipped = events.filter { it.id in saved && it.id !in plan.map { item -> item.id } }
+    var showSaved by rememberSaveable { mutableStateOf(false) }
     DemoView("Saved itinerary", showSampleLabel = false, header = { BackLink(onBack) }) {
         ViewText("Saved itinerary", heading = true)
         ViewText("A plan from your saved events, with no overlapping times.", color = viewMuted)
         if (plan.isEmpty()) InfoNotice("Save upcoming events to build your itinerary.")
         plan.forEach { EventRow(it, true, { onSave(it.id) }, { onOpen(it) }) }
+        if (plan.isNotEmpty()) BrandButton("Save itinerary on this phone", { onSavePlan(plan) }, secondary = true)
+        saveMessage?.let { ViewText(it, color = viewMuted) }
+        savedPlan?.let { stored ->
+            TextButton(onClick = { showSaved = !showSaved }) {
+                Text(if (showSaved) "Hide saved itinerary" else "Show saved itinerary", color = viewAccent)
+            }
+            if (showSaved) {
+                InfoNotice("Saved itinerary. Check for schedule changes when you are back online.")
+                stored.forEach { EventRow(it, it.id in saved, { onSave(it.id) }, { onOpen(it) }) }
+            }
+        }
         if (skipped.isNotEmpty()) {
             SectionHeading("Not included")
             ViewText("These events overlap, have started, or were cancelled.", color = viewMuted)

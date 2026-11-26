@@ -176,7 +176,7 @@ internal fun organizationColor(value: String?): Color = runCatching {
 
 @Composable
 internal fun OrganizationImage(name: String, category: String, color: Color, modifier: Modifier = Modifier,
-    imageUrl: String? = null) {
+    imageUrl: String? = null, onSuccess: (coil3.compose.AsyncImagePainter.State.Success) -> Unit = {}) {
     val slug = Normalizer.normalize(name, Normalizer.Form.NFD).replace(Regex("\\p{Mn}+"), "")
         .lowercase(Locale.ROOT).replace("&", "").replace(Regex("[^a-z0-9]+"), "_").trim('_')
     val image = when (slug) {
@@ -193,7 +193,7 @@ internal fun OrganizationImage(name: String, category: String, color: Color, mod
     if (!imageUrl.isNullOrBlank()) coil3.compose.AsyncImage(model = com.senecapp.data.mediaUrl(imageUrl),
         contentDescription = null, modifier = modifier.background(color.copy(alpha = .25f)),
         placeholder = image?.let { painterResource(it) }, error = image?.let { painterResource(it) },
-        contentScale = ContentScale.Crop)
+        contentScale = ContentScale.Crop, onSuccess = onSuccess)
     else if (image != null) Image(painterResource(image), contentDescription = null, modifier = modifier,
         contentScale = ContentScale.Crop)
     else Box(modifier.background(Brush.linearGradient(listOf(color.copy(alpha = .55f), color.copy(alpha = .18f), viewCard))),

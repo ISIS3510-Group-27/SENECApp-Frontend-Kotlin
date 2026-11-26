@@ -18,7 +18,7 @@ internal fun CampusHomeScreen(uid: String, profile: UserProfile, sensorContrast:
     val home = remember(provider) { provider[CampusHomeViewModel::class.java] }
     val organizations = remember(provider) { provider[OrganizationsViewModel::class.java] }
     val recommendations = remember(provider) { provider[GroupRecommendationsViewModel::class.java] }
-    val profileRecommendations = remember(provider) { provider["profileRecommendations", GroupRecommendationsViewModel::class.java] }
+    val profileRecommendations = remember(provider) { provider[ProfileRecommendationsViewModel::class.java] }
     val events = remember(provider) { provider[CampusEventsViewModel::class.java] }
     val myRsos = remember(provider) { provider[MyRSOsViewModel::class.java] }
     val freeNow = remember(provider) { provider[FreeNowViewModel::class.java] }
@@ -90,7 +90,7 @@ internal fun CampusHomeScreen(uid: String, profile: UserProfile, sensorContrast:
                     }
                     "schedule" -> ScheduleScreen(home, ::back)
                     "itinerary" -> ItineraryScreen(events.state.items, home.savedEvents, home::toggleEvent,
-                        { event(it.id) }, ::back)
+                        { event(it.id) }, ::back, events.savedItinerary, events.itineraryMessage, events::saveItinerary)
                     "recommendations" -> RecommendationsScreen(recommendations.state, ::back) {
                         group(it, "recommendation", recommendations.state.result?.requestId)
                     }
@@ -118,6 +118,7 @@ internal fun CampusHomeScreen(uid: String, profile: UserProfile, sensorContrast:
                     else -> when (selectedTab) {
                         "Events" -> EventFeedScreen(events.state, home.savedEvents, myRsos.state.mine.map { it.id }.toSet(),
                             { events.load(false) }, home::toggleEvent, { event(it.id) }, { navigate("free") }, { navigate("itinerary") },
+                            hasSavedItinerary = events.savedItinerary != null,
                             onScan = { id, code, coordinates ->
                                 event(id)
                                 checkIn.checkIn(id, code, coordinates, if (coordinates == null) "Checked in without location." else null)

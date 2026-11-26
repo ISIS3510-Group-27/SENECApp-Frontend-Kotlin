@@ -13,6 +13,9 @@ import com.senecapp.data.CachedEventsStore
 import com.senecapp.data.CampusEvent
 import com.senecapp.data.CampusEventsRepository
 import com.senecapp.data.CampusEventsSource
+import com.senecapp.data.EventDetailsStorage
+import com.senecapp.data.SavedEventDetailsStore
+import com.senecapp.data.SavedItineraryStore
 import com.senecapp.data.isEventsConnectivityFailure
 import com.senecapp.analytics.TelemetryFailure
 import kotlinx.coroutines.CancellationException
@@ -25,13 +28,18 @@ data class CampusEventsUiState(val loading: Boolean = true, val items: List<Camp
     val total: Int = 0, val error: String? = null, val selected: CampusEvent? = null,
     val detailLoading: Boolean = false, val detailError: String? = null,
     val fromCache: Boolean = false, val cachedAt: Long? = null, val refreshWarning: String? = null,
-    val listFailure: TelemetryFailure? = null, val detailFailure: TelemetryFailure? = null)
+    val listFailure: TelemetryFailure? = null, val detailFailure: TelemetryFailure? = null,
+    val detailFromDisk: Boolean = false)
 
 class CampusEventsViewModel internal constructor(application: Application,
     private val repository: CampusEventsSource, private val detailsCache: EventDetailsCache,
+    private val storedDetails: EventDetailsStorage? = null,
+    private val itineraryStore: SavedItineraryStore? = null,
     private val userId: () -> String?) : AndroidViewModel(application) {
     constructor(application: Application) : this(application,
-        CampusEventsRepository(CachedEventsStore(application)), EventDetailsMemoryCache(), FirebaseIdTokenProvider::userId)
+        CampusEventsRepository(CachedEventsStore(application)), EventDetailsMemoryCache(),
+        SavedEventDetailsStore(application),
+        SavedItineraryStore(application.noBackupFilesDir.resolve("itineraries")), FirebaseIdTokenProvider::userId)
 
     private val ownerUid = userId()
     var state by mutableStateOf(CampusEventsUiState())
@@ -42,6 +50,47 @@ class CampusEventsViewModel internal constructor(application: Application,
     private var attendanceVersion = 0L
     private var listMine: Boolean? = null
     private var hasSnapshot = false
+    var savedItinerary by mutableStateOf<List<CampusEvent>?>(null)
+        private set
+    var itineraryMessage by mutableStateOf<String?>(null)
+        private set
+    private var itineraryRequest: Job? = null
+
+    init {
+        if (itineraryStore != null && ownerUid != null) {
+            itineraryRequest = viewModelScope.launch {
+                try {
+                    val saved = itineraryStore.read(ownerUid)
+                    currentCoroutineContext().ensureActive()
+                    if (userId() == ownerUid) savedItinerary = saved
+                } catch (cancelled: CancellationException) { throw cancelled
+                } catch (_: Exception) {
+                    if (userId() == ownerUid) itineraryMessage = "Could not read the saved itinerary."
+                }
+            }
+        }
+    }
+
+    fun saveItinerary(plan: List<CampusEvent>) {
+        val store = itineraryStore ?: return
+        val uid = ownerUid?.takeIf { it == userId() } ?: return
+        if (plan.isEmpty()) return
+        itineraryRequest?.cancel()
+        itineraryRequest = viewModelScope.launch {
+            try {
+                store.save(uid, plan)
+                val saved = store.read(uid)
+                currentCoroutineContext().ensureActive()
+                if (userId() == uid) {
+                    savedItinerary = saved
+                    itineraryMessage = "Itinerary saved on this phone."
+                }
+            } catch (cancelled: CancellationException) { throw cancelled
+            } catch (_: Exception) {
+                if (userId() == uid) itineraryMessage = "Could not save the itinerary. Try again."
+            }
+        }
+    }
 
     fun load(mine: Boolean) {
         if (ownerUid == null || userId() != ownerUid) {
@@ -92,6 +141,9 @@ class CampusEventsViewModel internal constructor(application: Application,
         detailsCache.clear()
         detailEventId = null
         hasSnapshot = false
+        itineraryRequest?.cancel()
+        savedItinerary = null
+        itineraryMessage = null
         state = CampusEventsUiState(loading = false, error = message)
     }
 
@@ -108,10 +160,12 @@ class CampusEventsViewModel internal constructor(application: Application,
         detailEventId = id
         val cached = if (source == "events") detailsCache.get(id) else null
         if (cached != null) {
-            state = state.copy(selected = cached, detailLoading = false, detailError = null, detailFailure = null)
+            state = state.copy(selected = cached, detailLoading = false, detailError = null, detailFailure = null,
+                detailFromDisk = false)
             return
         }
-        state = state.copy(selected = preview, detailLoading = true, detailError = null, detailFailure = null)
+        state = state.copy(selected = preview, detailLoading = true, detailError = null, detailFailure = null,
+            detailFromDisk = false)
         detailRequest = viewModelScope.launch {
             try {
                 var fresh: CampusEvent
@@ -120,6 +174,10 @@ class CampusEventsViewModel internal constructor(application: Application,
                     fresh = repository.detail(id, source, requestId)
                     currentCoroutineContext().ensureActive()
                     if (userId() != ownerUid) { clearSessionData(); return@launch }
+                    if (source == "events" && version == attendanceVersion) {
+                        optionalDetailStorage { storedDetails?.save(ownerUid, fresh) }
+                        if (userId() != ownerUid) { clearSessionData(); return@launch }
+                    }
                     // A response started before a confirmed check-in may have old attendance counts.
                 } while (version != attendanceVersion)
                 if (source == "events") detailsCache.put(fresh)
@@ -131,6 +189,15 @@ class CampusEventsViewModel internal constructor(application: Application,
                 if (failure is SessionChangedException || failure is SessionRequiredException || invalidFirebaseSession(failure) ||
                     (failure is ApiHttpException && failure.status in setOf(401, 403))) {
                     detailsCache.clear()
+                }
+                // A disk fallback is read-only and never enters the fresh in-memory LRU.
+                if (source == "events" && isEventsConnectivityFailure(failure)) {
+                    val saved = optionalDetailStorage { storedDetails?.read(ownerUid, id) }
+                    if (userId() != ownerUid) { clearSessionData(); return@launch }
+                    if (saved != null) {
+                        state = state.copy(selected = saved, detailLoading = false, detailFromDisk = true)
+                        return@launch
+                    }
                 }
                 state = state.copy(detailLoading = false, detailError = "Could not update event details. Tap Retry.",
                     detailFailure = TelemetryFailure.from(failure))
@@ -148,7 +215,8 @@ class CampusEventsViewModel internal constructor(application: Application,
     fun close() {
         detailRequest?.cancel()
         detailEventId = null
-        state = state.copy(selected = null, detailLoading = false, detailError = null, detailFailure = null)
+        state = state.copy(selected = null, detailLoading = false, detailError = null, detailFailure = null,
+            detailFromDisk = false)
     }
 
     override fun onCleared() {
@@ -156,3 +224,12 @@ class CampusEventsViewModel internal constructor(application: Application,
         super.onCleared()
     }
 }
+
+private suspend fun <T> optionalDetailStorage(block: suspend () -> T): T? =
+    try {
+        block().also { currentCoroutineContext().ensureActive() }
+    } catch (cancelled: CancellationException) { throw cancelled
+    } catch (_: Exception) {
+        currentCoroutineContext().ensureActive()
+        null
+    }

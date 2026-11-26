@@ -6,6 +6,7 @@ import com.senecapp.data.ApiHttpException
 import com.senecapp.data.CampusEvent
 import com.senecapp.data.CampusEventsResult
 import com.senecapp.data.CampusEventsSource
+import com.senecapp.data.EventDetailsStorage
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -40,6 +41,52 @@ class EventDetailsMemoryViewModelTest {
 
     private fun model(source: Source, cache: FakeEventDetailsCache = FakeEventDetailsCache(), key: String = "events") =
         CampusEventsViewModel(Application(), source, cache) { uid }.also { store.put(key, it) }
+
+    @Test fun eventDetailFromDiskIsReadOnlyUntilFreshRetryAndDoesNotPopulateLru() = runTest(dispatcher) {
+        val source = Source { throw IOException("Offline") }
+        val cache = FakeEventDetailsCache()
+        val disk = object : EventDetailsStorage {
+            var persisted = event.copy(description = "Last known detail")
+            override suspend fun read(uid: String, id: Int): CampusEvent? =
+                persisted.takeIf { uid == "a" && id == it.id }
+            override suspend fun save(uid: String, event: CampusEvent) { persisted = event }
+        }
+        val vm = CampusEventsViewModel(Application(), source, cache, storedDetails = disk) { uid }
+            .also { store.put("offline", it) }
+        vm.openId(event.id)
+        advanceUntilIdle()
+        assertEquals(disk.persisted, vm.state.selected)
+        assertTrue(vm.state.detailFromDisk)
+        assertFalse(vm.state.detailLoading)
+        assertTrue(cache.items.isEmpty())
+        source.response = { event.copy(description = "Fresh") }
+        vm.openId(event.id)
+        advanceUntilIdle()
+        assertEquals("Fresh", vm.state.selected?.description)
+        assertEquals(vm.state.selected, disk.persisted)
+        assertFalse(vm.state.detailFromDisk)
+    }
+
+    @Test fun diskFallbackDoesNotHandleHttpErrorsOrOtherEntryPoints() = runTest(dispatcher) {
+        val source = Source { throw ApiHttpException(403) }
+        var diskReads = 0
+        val disk = object : EventDetailsStorage {
+            override suspend fun read(uid: String, id: Int): CampusEvent? { diskReads++; return event }
+            override suspend fun save(uid: String, event: CampusEvent) = Unit
+        }
+        val vm = CampusEventsViewModel(Application(), source, FakeEventDetailsCache(), storedDetails = disk) { uid }
+            .also { store.put("offline", it) }
+        vm.openId(event.id)
+        advanceUntilIdle()
+        assertNotNull(vm.state.detailError)
+        assertFalse(vm.state.detailFromDisk)
+        source.response = { throw IOException("Offline") }
+        vm.openId(event.id, source = "group_detail")
+        advanceUntilIdle()
+        assertNotNull(vm.state.detailError)
+        assertFalse(vm.state.detailFromDisk)
+        assertEquals(0, diskReads)
+    }
 
     @Test fun missFetchesAndCachesThenHitSkipsBackend() = runTest(dispatcher) {
         val source = Source { event }

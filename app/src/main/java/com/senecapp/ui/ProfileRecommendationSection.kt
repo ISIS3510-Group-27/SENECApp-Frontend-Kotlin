@@ -1,10 +1,17 @@
 package com.senecapp.ui
 
+import android.util.Log
 import androidx.compose.foundation.layout.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.ui.unit.dp
+import coil3.decode.DataSource
+import com.senecapp.BuildConfig
 import com.senecapp.data.GroupRecommendation
+import java.net.URI
 
 /** Reuses the server's trained ranking; does not invent a second client-side model. */
 @Composable
@@ -25,12 +32,25 @@ internal fun ProfileRecommendationSection(state: GroupRecommendationsUiState, on
                 state.error != null -> ViewText(state.error)
                 else -> {
                     val group = state.result?.items?.firstOrNull { !it.isMember && it.id !in state.joinedGroupIds }
+                    if (state.fromCache) InfoNotice("Saved recommendations. Reconnect and refresh to open or join an organization.")
                     if (group == null) ViewText("No new suggestions right now.", color = viewMuted)
                     else {
+                        val image = remember(group.imageUrl) {
+                            group.imageUrl?.takeIf { runCatching { URI(it) }.isSuccess }
+                        }
+                        OrganizationImage(group.name, group.category, organizationColor(group.color),
+                            modifier = Modifier.fillMaxWidth().height(116.dp).clip(RoundedCornerShape(16.dp)),
+                            imageUrl = image, onSuccess = { loaded ->
+                                if (BuildConfig.DEBUG) {
+                                    val source = if (loaded.result.dataSource == DataSource.MEMORY_CACHE) "MEMORY"
+                                        else loaded.result.dataSource.name
+                                    Log.d("ProfileRecommendationImage", "source=$source")
+                                }
+                            })
                         ViewText(group.name, heading = true)
                         ViewText(group.category, color = viewAccent)
                         group.reasons.forEach { ViewText(it, color = viewMuted) }
-                        TextButton(onClick = { if (!externalDetails) selected = group; onOpen(group.id) }) {
+                        TextButton(enabled = !state.fromCache, onClick = { if (!externalDetails) selected = group; onOpen(group.id) }) {
                             Text("View organization", color = viewAccent)
                         }
                     }
@@ -50,7 +70,7 @@ internal fun ProfileRecommendationSection(state: GroupRecommendationsUiState, on
                 state.actionError?.let { ViewText(it) }
             } },
             confirmButton = {
-                TextButton(enabled = !joined && state.joiningGroupId == null, onClick = { onJoin(group.id) }) {
+                TextButton(enabled = !state.fromCache && !joined && state.joiningGroupId == null, onClick = { onJoin(group.id) }) {
                     Text(when { joined -> "Joined"; state.joiningGroupId == group.id -> "Joining…"; else -> "Join organization" },
                         color = if (joined || state.joiningGroupId != null) viewMuted else viewAccent)
                 }
