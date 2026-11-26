@@ -94,6 +94,9 @@ internal fun CampusHomeScreen(uid: String, profile: UserProfile, sensorContrast:
                     "recommendations" -> RecommendationsScreen(recommendations.state, ::back) {
                         group(it, "recommendation", recommendations.state.result?.requestId)
                     }
+                    "compareRecommendedGroups" -> CompareRecommendedGroupsRoute(profileRecommendations, ::back) { id, requestId ->
+                        group(id, "recommendation", requestId)
+                    }
                     "free" -> {
                         LaunchedEffect(Unit) { freeNow.load() }
                         DemoView("Free right now?", showSampleLabel = false, header = { BackLink(::back) }) {
@@ -131,7 +134,8 @@ internal fun CampusHomeScreen(uid: String, profile: UserProfile, sensorContrast:
                             profileRecommendations::joinGroup, joinedCount = if (myRsos.state.loading) null else myRsos.state.mine.size,
                             attended = home.attended, outdoorMode = home.outdoorMode, onOutdoorMode = home::outdoor,
                             onLocation = { home.setLocation(it) { onRefreshProfile(); freeNow.refreshConsent() } },
-                            onSchedule = { navigate("schedule") }, settingsBusy = home.busy, externalDetails = true)
+                            onSchedule = { navigate("schedule") }, settingsBusy = home.busy, externalDetails = true,
+                            onCompareRecommendations = { navigate("compareRecommendedGroups") })
                         else -> DiscoverScreen(showBottomNavigation = false, highContrast = contrast,
                             organizationsState = organizations.state, onSearch = organizations::search,
                             onRefresh = organizations::refresh,

@@ -129,4 +129,38 @@ class ProfileRecommendationLoadTest {
             Dispatchers.resetMain()
         }
     }
+
+    @Test fun comparisonReusesAnInFlightLoad() = runTest {
+        Dispatchers.setMain(StandardTestDispatcher(testScheduler))
+        try {
+            val response = CompletableDeferred<GroupRecommendations>()
+            val cache = Cache()
+            var requests = 0
+            val vm = GroupRecommendationsViewModel(GroupRecommendationsRepository(), cache, { "user" }) {
+                requests++
+                response.await()
+            }
+            vm.load()
+            runCurrent()
+            vm.loadForComparison()
+            runCurrent()
+            assertEquals(1, requests)
+            response.complete(fresh)
+            advanceUntilIdle()
+            assertEquals(fresh, vm.state.result)
+            assertEquals(listOf("user" to fresh), cache.writes)
+        } finally {
+            Dispatchers.resetMain()
+        }
+    }
+
+    @Test fun onlyFreshSuccessfulRecommendationsAllowOpeningDetails() {
+        val loaded = GroupRecommendationsUiState(loading = false, result = fresh)
+        assertTrue(loaded.canOpenComparisonGroup(online = true))
+        assertFalse(loaded.canOpenComparisonGroup(online = false))
+        assertFalse(loaded.copy(result = cached, fromCache = true).canOpenComparisonGroup(online = true))
+        assertFalse(loaded.copy(loading = true).canOpenComparisonGroup(online = true))
+        assertFalse(loaded.copy(error = "error").canOpenComparisonGroup(online = true))
+        assertFalse(loaded.copy(result = null).canOpenComparisonGroup(online = true))
+    }
 }
