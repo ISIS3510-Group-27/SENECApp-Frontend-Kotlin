@@ -4,6 +4,7 @@ import java.util.Properties
 plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.plugin.compose")
+    id("io.objectbox") version "5.4.2"
 }
 
 // Firebase sign-in requires app/google-services.json from the senecapp project.
