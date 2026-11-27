@@ -6,7 +6,7 @@ import android.database.sqlite.SQLiteOpenHelper
 
 
 private const val DB_NAME = "senecapp_rso.db"
-private const val DB_VERSION = 1
+private const val DB_VERSION = 2
 
 // Relational storage for My RSOs, the Create RSO catalogue and the offline queues.
 // Separate file from the SharedPreferences caches of Discover and Events. Every row is scoped by Firebase uid.
@@ -94,12 +94,12 @@ internal class RSODatabase private constructor(context: Context) :
             )
             """.trimIndent()
         )
+        createProfileTipsTables(db)
     }
 
     override fun onUpgrade(db: SQLiteDatabase, oldVersion: Int, newVersion: Int) {
-        // Version 1 is the first schema. Future versions add their ALTER TABLE / CREATE TABLE steps here.
+        if (oldVersion < 2) createProfileTipsTables(db)
     }
-
     companion object {
         @Volatile private var instance: RSODatabase? = null
 
