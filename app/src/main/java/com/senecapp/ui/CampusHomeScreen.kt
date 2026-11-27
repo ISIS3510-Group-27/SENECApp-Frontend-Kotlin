@@ -1,5 +1,6 @@
 package com.senecapp.ui
 
+import android.net.Uri
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -7,6 +8,7 @@ import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.saveable.rememberSaveableStateHolder
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.ViewModelProvider
 import com.senecapp.data.*
@@ -76,8 +78,21 @@ internal fun CampusHomeScreen(uid: String, profile: UserProfile, sensorContrast:
         Box(Modifier.weight(1f)) {
             screenStates.SaveableStateProvider("$selectedTab:$route") {
                 when (parts[0]) {
-                    "group" -> GroupDetailsScreen(home, parts[1].toInt(), ::back, ::changed,
-                        { event(it.id, "group_detail") }, { navigate("createEvent:${parts[1]}") }, { navigate("admins:${parts[1]}") })
+                    "group" -> {
+                        val id = parts[1].toInt()
+                        val context = LocalContext.current
+                        val online by produceState(isOnline(context), context) { networkStatus(context).collect { value = it } }
+                        val offlineAdmin = if (online) null else myRsos.state.mine.firstOrNull {
+                            it.id == id && it.role == "admin" && it.reviewStatus == "approved"
+                        }
+                        GroupDetailsScreen(home, id, ::back, ::changed, { event(it.id, "group_detail") },
+                            { navigate("createEvent:$id") }, { navigate("admins:$id") },
+                            { group -> navigate("joinSources:$id:${Uri.encode(group.name)}") }, offlineAdmin)
+                    }
+                    "joinSources" -> {
+                        val model = remember(provider) { provider[JoinSourcesViewModel::class.java] }
+                        JoinSourcesScreen(JoinSourcesKey(uid, parts[1].toInt()), Uri.decode(parts[2]), model, ::back)
+                    }
                     "event" -> EventDetailsScreen(events.state, parts[1].toInt(), parts[1].toInt() in home.savedEvents,
                         home.schedule, myRsos.state.mine.any { it.id == events.state.selected?.groupId && it.role == "admin" },
                         checkIn, ::back, { events.openId(parts[1].toInt(), parts[2], requestId = parts.getOrNull(3)?.takeIf { it.isNotBlank() }) },
@@ -153,7 +168,7 @@ internal fun CampusHomeScreen(uid: String, profile: UserProfile, sensorContrast:
                 }
             }
         }
-        if (parts[0] != "createGroup") AppBottomNavigation(selectedTab, contrast) {
+        if (parts[0] !in setOf("createGroup", "joinSources")) AppBottomNavigation(selectedTab, contrast) {
             if (!home.busy) {
                 if (it == selectedTab) setStack(listOf("root")) else selectedTab = it
             }

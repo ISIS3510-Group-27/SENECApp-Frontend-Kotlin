@@ -108,5 +108,8 @@ internal class CampusRepository(private val api: AuthenticatedApiClient = backen
     }
     suspend fun bestTimes(id: Int, minutes: Int): JSONObject =
         JSONObject(api.request("/groups/$id/insights/best-times?duration_minutes=$minutes&limit=3"))
+    suspend fun joinSources(id: Int): JoinSources =
+        parseJoinSources(JSONObject(api.request("/groups/$id/insights/join-sources?days=90")))
+
     suspend fun audience(id: Int): JSONObject = JSONObject(api.request("/groups/$id/insights/audience"))
 }

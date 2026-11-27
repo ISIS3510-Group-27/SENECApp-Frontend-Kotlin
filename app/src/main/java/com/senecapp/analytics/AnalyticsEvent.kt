@@ -7,6 +7,7 @@ import java.util.UUID
 
 enum class AnalyticsScreen(val wireName: String, val feature: String) {
     DISCOVER("discover", "explore"), GROUP_DETAIL("group_detail", "group_profile"),
+    JOIN_SOURCES("join_sources", "group_profile"),
     EVENTS("events", "events"), EVENT_DETAIL("event_detail", "events"), PROFILE("profile", "profile"),
     REGISTRATION("registration", "auth"), EMAIL_VERIFICATION("email_verification", "auth"),
     MY_RSOS("my_rsos", "home"), CREATE_GROUP("create_group", "create_group"),
