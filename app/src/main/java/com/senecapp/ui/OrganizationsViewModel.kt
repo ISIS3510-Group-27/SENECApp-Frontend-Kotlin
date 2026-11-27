@@ -32,12 +32,20 @@ data class OrganizationsUiState(
     val fromCache: Boolean = false,
     val cachedAt: Long? = null,
     val refreshWarning: String? = null,
+    val localList: List<Organization>? = null,
+    val localListBusy: Boolean = false,
+    val localListMessage: String? = null,
 )
 
 class OrganizationsViewModel internal constructor(application: Application,
-    private val repository: OrganizationsSource, private val userId: () -> String?) : AndroidViewModel(application) {
+    private val repository: OrganizationsSource,
+    private val localListStore: SavedOrganizationListStore? = null,
+    private val userId: () -> String?,
+) : AndroidViewModel(application) {
     constructor(application: Application) : this(application,
-        OrganizationsRepository(CachedOrganizationsStore(application)), FirebaseIdTokenProvider::userId)
+        OrganizationsRepository(SqliteOrganizationsStore(application)),
+        SavedOrganizationListStore(application.noBackupFilesDir.resolve("discover")),
+        FirebaseIdTokenProvider::userId)
 
     private val ownerUid = userId()
     var state by mutableStateOf(OrganizationsUiState())
@@ -45,6 +53,7 @@ class OrganizationsViewModel internal constructor(application: Application,
     private var request: Job? = null
     private var detailRequest: Job? = null
     private var saveRequest: Job? = null
+    private var localListRequest: Job? = null
     private var activeQuery: OrganizationsQuery? = null
     private var loaded = false
     private var hasSnapshot = false
@@ -123,6 +132,52 @@ class OrganizationsViewModel internal constructor(application: Application,
         state = state.copy(detailLoading = false, detailDescription = null, detailError = null, saveError = null)
     }
 
+    fun saveLocalList() {
+        val items = state.items
+        if (state.loading || state.savingId != null || items.isEmpty()) return
+        updateLocalList("Could not save the organization list.") { store, uid ->
+            store.save(uid, items)
+            state.copy(localListMessage = "List saved on this phone.")
+        }
+    }
+
+    fun openLocalList() {
+        updateLocalList("Could not open the saved list.") { store, uid ->
+            val items = store.read(uid)
+            state.copy(localList = items,
+                localListMessage = if (items == null) "No list is saved on this phone yet." else null)
+        }
+    }
+
+    fun closeLocalList() {
+        state = state.copy(localList = null)
+    }
+
+    private fun updateLocalList(
+        errorMessage: String,
+        operation: suspend (SavedOrganizationListStore, String) -> OrganizationsUiState,
+    ) {
+        val store = localListStore ?: return
+        val uid = ownerUid
+        if (uid == null || !ownsSession()) { clearSessionData(); return }
+        if (state.localListBusy) return
+        state = state.copy(localListBusy = true, localListMessage = null)
+        localListRequest = viewModelScope.launch {
+            try {
+                val updated = operation(store, uid)
+                currentCoroutineContext().ensureActive()
+                if (!ownsSession()) { clearSessionData(); return@launch }
+                state = updated.copy(localListBusy = false)
+            } catch (cancelled: CancellationException) {
+                throw cancelled
+            } catch (_: Exception) {
+                currentCoroutineContext().ensureActive()
+                if (!ownsSession()) { clearSessionData(); return@launch }
+                state = state.copy(localListBusy = false, localListMessage = errorMessage)
+            }
+        }
+    }
+
     fun toggleSave(id: Int, onSaved: () -> Unit = {}) {
         if (!ownsSession()) { clearSessionData(); return }
         if (state.savingId != null) return
@@ -150,6 +205,7 @@ class OrganizationsViewModel internal constructor(application: Application,
 
     private fun clearSessionData(message: String? = null) {
         request?.cancel(); detailRequest?.cancel(); saveRequest?.cancel()
+        localListRequest?.cancel()
         hasSnapshot = false
         loaded = false
         state = OrganizationsUiState(loading = false, error = message ?: "Your session has ended. Sign in again.")

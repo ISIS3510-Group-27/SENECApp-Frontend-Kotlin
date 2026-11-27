@@ -50,14 +50,25 @@ class OrganizationsRepositoryTest {
     @Test fun allPagesAndCategoriesMustCompleteBeforeSaving() = runTest {
         val cache = cache()
         val paths = mutableListOf<String>()
+        val categoriesStarted = CompletableDeferred<Unit>()
         val repo = repository(StandardTestDispatcher(testScheduler), cache) { path ->
             paths += path
             assertEquals(0, cache.writes)
             assertEquals(snapshot, cache.entries["a" to query.key()])
-            if (path == "/categories") categories else page(paths.size, 2)
+            when {
+                path == "/categories" -> {
+                    categoriesStarted.complete(Unit)
+                    categories
+                }
+                path.endsWith("offset=0") -> {
+                    categoriesStarted.await()
+                    page(1, 2)
+                }
+                else -> page(2, 2)
+            }
         }
         val result = repo.load(query)
-        assertEquals(listOf("/groups?limit=100&sort=popular&offset=0", "/groups?limit=100&sort=popular&offset=1", "/categories"), paths)
+        assertEquals(listOf("/groups?limit=100&sort=popular&offset=0", "/categories", "/groups?limit=100&sort=popular&offset=1"), paths)
         assertEquals(listOf(1, 2), result.items.map { it.id })
         assertEquals(snapshot.categories, result.categories)
         assertFalse(result.fromCache)
@@ -67,9 +78,12 @@ class OrganizationsRepositoryTest {
 
     @Test fun laterPageFailureReturnsOldCompleteSnapshot() = runTest {
         val cache = cache()
-        var calls = 0
-        val repo = repository(StandardTestDispatcher(testScheduler), cache) {
-            if (++calls == 1) page(1, 2) else throw IOException("Offline")
+        val repo = repository(StandardTestDispatcher(testScheduler), cache) { path ->
+            when {
+                path == "/categories" -> categories
+                path.endsWith("offset=0") -> page(1, 2)
+                else -> throw IOException("Offline")
+            }
         }
         val result = repo.load(query)
         assertTrue(result.fromCache)
@@ -115,7 +129,9 @@ class OrganizationsRepositoryTest {
             page(total = 2))
         for (response in responses) {
             val cache = cache()
-            val repo = repository(StandardTestDispatcher(testScheduler), cache) { response }
+            val repo = repository(StandardTestDispatcher(testScheduler), cache) { path ->
+                if (path == "/categories") categories else response
+            }
             expect<Exception> { repo.load(query) }
             assertEquals(0, cache.reads)
             assertEquals(0, cache.writes)
@@ -161,15 +177,25 @@ class OrganizationsRepositoryTest {
 
     @Test fun cancelledRequestCannotWriteALateResponse() = runTest {
         val cache = cache()
+        val bothStarted = CompletableDeferred<Unit>()
+        val cancelled = mutableSetOf<String>()
+        var starts = 0
         val job = launch {
-            val repo = repository(StandardTestDispatcher(testScheduler), cache) {
-                currentCoroutineContext().cancel()
-                page()
+            val repo = repository(StandardTestDispatcher(testScheduler), cache) { path ->
+                if (++starts == 2) bothStarted.complete(Unit)
+                try {
+                    awaitCancellation()
+                } finally {
+                    cancelled += path
+                }
             }
             repo.load(query)
         }
+        bothStarted.await()
+        job.cancel()
         job.join()
         assertTrue(job.isCancelled)
+        assertEquals(setOf("/groups?limit=100&sort=popular&offset=0", "/categories"), cancelled)
         assertEquals(0, cache.reads)
         assertEquals(0, cache.writes)
     }

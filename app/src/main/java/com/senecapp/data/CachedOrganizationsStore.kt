@@ -33,30 +33,15 @@ internal class CachedOrganizationsStore(private val preferences: SharedPreferenc
             val rows = rows(uid)
             val row = (0 until rows.length()).map { rows.getJSONObject(it) }
                 .lastOrNull { it.getString("query") == query.key() } ?: return null
-            val items = row.getJSONArray("items").readItems { item ->
-                Organization(item.getInt("id"), item.getString("name"), item.getString("category"),
-                    item.getString("categorySlug"), item.getInt("members"), item.textOrNull("color"),
-                    item.getBoolean("hasUpcomingEvent"), item.getBoolean("isSaved"), item.textOrNull("imageUrl"),
-                    item.getBoolean("verified"), item.textOrNull("nextEventTitle"), item.textOrNull("nextEventStartsAt"))
-            }
-            val categories = row.getJSONArray("categories").readItems { it.getString("slug") to it.getString("label") }
-            CachedOrganizations(items, categories, row.getInt("total"), row.getLong("updatedAt")).takeIf(::valid)
+            decodeSnapshot(row).takeIf(CachedOrganizations::isValid)
         } catch (cancelled: CancellationException) { throw cancelled
         } catch (_: Exception) { null }
     }
 
     override fun save(uid: String, query: OrganizationsQuery, snapshot: CachedOrganizations): Boolean {
-        if (uid.isBlank() || !valid(snapshot)) return false
+        if (uid.isBlank() || !snapshot.isValid()) return false
         return try {
-            val items = JSONArray()
-            snapshot.items.forEach { item ->
-                items.put(JSONObject().put("id", item.id).put("name", item.name).put("category", item.category)
-                    .put("categorySlug", item.categorySlug).put("members", item.members)
-                    .put("color", item.color ?: JSONObject.NULL).put("hasUpcomingEvent", item.hasUpcomingEvent)
-                    .put("isSaved", item.isSaved).put("imageUrl", item.imageUrl ?: JSONObject.NULL)
-                    .put("verified", item.verified).put("nextEventTitle", item.nextEventTitle ?: JSONObject.NULL)
-                    .put("nextEventStartsAt", item.nextEventStartsAt ?: JSONObject.NULL))
-            }
+            val items = JSONArray(snapshot.items.map(OrganizationJson::encode))
             val categories = JSONArray()
             snapshot.categories.forEach { (slug, label) -> categories.put(JSONObject().put("slug", slug).put("label", label)) }
             val row = JSONObject().put("query", query.key()).put("items", items).put("categories", categories)
@@ -76,13 +61,52 @@ internal class CachedOrganizationsStore(private val preferences: SharedPreferenc
     private fun rows(uid: String): JSONArray {
         val raw = preferences.getString("discover.$uid", null) ?: return JSONArray()
         val root = JSONObject(raw)
-        require(root.getInt("version") == 1 && root.getString("uid") == uid)
+        if (root.getInt("version") != 1 || root.getString("uid") != uid) return JSONArray()
         return root.getJSONArray("snapshots")
     }
 
-    private fun valid(snapshot: CachedOrganizations): Boolean = snapshot.updatedAt > 0L &&
-        snapshot.total == snapshot.items.size && snapshot.items.map { it.id }.distinct().size == snapshot.items.size &&
-        snapshot.categories.map { it.first }.distinct().size == snapshot.categories.size
+    fun snapshots(uid: String): List<Pair<String, CachedOrganizations>> {
+        val previous = try {
+            rows(uid)
+        } catch (_: org.json.JSONException) {
+            return emptyList()
+        }
+        return (0 until previous.length()).mapNotNull { index ->
+            try {
+                val row = previous.getJSONObject(index)
+                val snapshot = decodeSnapshot(row)
+                if (snapshot.isValid()) row.getString("query") to snapshot else null
+            } catch (_: org.json.JSONException) {
+                null
+            }
+        }.takeLast(MAX_QUERIES)
+    }
+
+    private fun decodeSnapshot(row: JSONObject): CachedOrganizations {
+        val items = row.getJSONArray("items").readItems(OrganizationJson::decode)
+        val categories = row.getJSONArray("categories").readItems { it.getString("slug") to it.getString("label") }
+        return CachedOrganizations(items, categories, row.getInt("total"), row.getLong("updatedAt"))
+    }
 
     companion object { const val MAX_QUERIES = 10 }
+}
+
+internal fun CachedOrganizations.isValid(): Boolean = updatedAt > 0L &&
+    total == items.size && items.distinctBy(Organization::id).size == items.size &&
+    categories.distinctBy { it.first }.size == categories.size
+
+internal object OrganizationJson {
+    fun encode(item: Organization): JSONObject = JSONObject().put("id", item.id).put("name", item.name)
+        .put("category", item.category).put("categorySlug", item.categorySlug).put("members", item.members)
+        .put("color", item.color ?: JSONObject.NULL).put("hasUpcomingEvent", item.hasUpcomingEvent)
+        .put("isSaved", item.isSaved).put("imageUrl", item.imageUrl ?: JSONObject.NULL)
+        .put("verified", item.verified).put("nextEventTitle", item.nextEventTitle ?: JSONObject.NULL)
+        .put("nextEventStartsAt", item.nextEventStartsAt ?: JSONObject.NULL)
+
+    fun decode(item: JSONObject): Organization = Organization(
+        item.getInt("id"), item.getString("name"), item.getString("category"),
+        item.getString("categorySlug"), item.getInt("members"), item.textOrNull("color"),
+        item.getBoolean("hasUpcomingEvent"), item.getBoolean("isSaved"), item.textOrNull("imageUrl"),
+        item.getBoolean("verified"), item.textOrNull("nextEventTitle"), item.textOrNull("nextEventStartsAt"),
+    )
 }
