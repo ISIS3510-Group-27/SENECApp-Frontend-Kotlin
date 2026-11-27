@@ -27,6 +27,15 @@ class EventPlanningTest {
             event(2, "2026-10-30T00:00:00-05:00", "2026-10-30T01:00:00-05:00"))
         assertEquals(listOf(1), filterEvents(events, "", "Next 7 days", now).map { it.id })
     }
+    @Test fun `all dates sort equal instants by id and keep unparseable events last`() {
+        val events = listOf(
+            event(4, "unparseable", "unparseable"),
+            event(3, "2026-10-23T14:00:00Z", "2026-10-23T15:00:00Z"),
+            event(1, "2026-10-23T09:00:00-05:00", "2026-10-23T10:00:00-05:00"),
+        )
+        assertEquals(listOf(1, 3, 4), filterEvents(events, "", "Any date", now).map { it.id })
+        assertEquals(listOf(1, 3), filterEvents(events, "", "Today", now).map { it.id })
+    }
     @Test fun `itinerary maximizes full events rather than selecting longest first`() {
         val events = listOf(event(1, "2026-10-23T09:00:00-05:00", "2026-10-23T13:00:00-05:00"),
             event(2, "2026-10-23T09:00:00-05:00", "2026-10-23T10:00:00-05:00"),
