@@ -81,7 +81,7 @@ class AnalyticsEventTest {
 
     @Test fun allAssignedScreenNamesAreSupported() {
         assertEquals(setOf("events", "event_detail", "profile", "registration", "email_verification", "discover", "group_detail",
-            "my_rsos", "create_group", "check_in_scanner", "join_form"),
+            "my_rsos", "create_group", "check_in_scanner", "join_form", "join_sources", "profile_tips"),
             AnalyticsScreen.entries.filter { it != AnalyticsScreen.UNKNOWN }
                 .map { AnalyticsEvent.read(testEvent(it).json()).screen.wireName }.toSet())
     }

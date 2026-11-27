@@ -53,6 +53,7 @@ internal fun CampusHomeScreen(uid: String, profile: UserProfile, sensorContrast:
     val contrast = when (home.outdoorMode) { "On" -> true; "Off" -> false; else -> sensorContrast }
     val screenStates = rememberSaveableStateHolder()
     LaunchedEffect(uid) { home.start(uid); myRsos.load(); events.load(false) }
+    DisposableEffect(uid) { onDispose { if (com.senecapp.auth.FirebaseIdTokenProvider.userId() != uid) ProfileTipsLruCache.shared.clear() } }
     // Proposals saved offline are sent when the connection returns; My RSOs then shows them as pending review.
     LaunchedEffect(uid) { createGroup.watchPending { myRsos.refresh(); pending.load() } }
     // Check-ins scanned offline are sent the same way; attendance counts are refreshed after.
@@ -92,6 +93,11 @@ internal fun CampusHomeScreen(uid: String, profile: UserProfile, sensorContrast:
                     "joinSources" -> {
                         val model = remember(provider) { provider[JoinSourcesViewModel::class.java] }
                         JoinSourcesScreen(JoinSourcesKey(uid, parts[1].toInt()), Uri.decode(parts[2]), model, ::back)
+                    }
+                    "profileTips" -> {
+                        val id = parts[1].toInt()
+                        val model = remember(provider) { provider[ProfileTipsViewModel::class.java] }
+                        ProfileTipsScreen(id, Uri.decode(parts[2]), myRsos.state.mine.firstOrNull { it.id == id }, model, ::back)
                     }
                     "event" -> EventDetailsScreen(events.state, parts[1].toInt(), parts[1].toInt() in home.savedEvents,
                         home.schedule, myRsos.state.mine.any { it.id == events.state.selected?.groupId && it.role == "admin" },
@@ -142,7 +148,8 @@ internal fun CampusHomeScreen(uid: String, profile: UserProfile, sensorContrast:
                                 checkIn.checkIn(id, code, coordinates, if (coordinates == null) "Checked in without location." else null)
                             })
                         "My RSOs" -> MyRSOsScreen(myRsos.state, myRsos::ensureLoaded, { navigate("createGroup") }, home.attended, { group(it) },
-                            myRsos::watchConnection, { navigate("pending") })
+                            myRsos::watchConnection, { navigate("pending") },
+                            { navigate("profileTips:${it.id}:${Uri.encode(it.name)}") })
                         "Profile" -> ProfileScreen(profile, profileLoading, profileError ?: home.error, onRefreshProfile, onSignOut,
                             profileRecommendations.state, profileRecommendations::load,
                             { group(it, "recommendation", profileRecommendations.state.result?.requestId) },
@@ -168,7 +175,7 @@ internal fun CampusHomeScreen(uid: String, profile: UserProfile, sensorContrast:
                 }
             }
         }
-        if (parts[0] !in setOf("createGroup", "joinSources")) AppBottomNavigation(selectedTab, contrast) {
+        if (parts[0] !in setOf("createGroup", "joinSources", "profileTips")) AppBottomNavigation(selectedTab, contrast) {
             if (!home.busy) {
                 if (it == selectedTab) setStack(listOf("root")) else selectedTab = it
             }
