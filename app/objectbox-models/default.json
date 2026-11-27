@@ -33,10 +33,128 @@
         }
       ],
       "relations": []
+    },
+    {
+      "id": "2:1126557690292341709",
+      "lastPropertyId": "10:7038427463706225184",
+      "name": "JoinSnapshotRecord",
+      "properties": [
+        {
+          "id": "1:533255879179106070",
+          "name": "id",
+          "type": 6,
+          "flags": 1
+        },
+        {
+          "id": "2:4425085439301053825",
+          "name": "account",
+          "indexId": "2:8577130615828583667",
+          "type": 9,
+          "flags": 2048
+        },
+        {
+          "id": "3:4392559113949782838",
+          "name": "groupId",
+          "type": 5
+        },
+        {
+          "id": "4:3430937220597993455",
+          "name": "takenAt",
+          "type": 6
+        },
+        {
+          "id": "5:4874886229289673757",
+          "name": "days",
+          "type": 5
+        },
+        {
+          "id": "6:1078293684115595172",
+          "name": "views",
+          "type": 5
+        },
+        {
+          "id": "7:4942243553762003211",
+          "name": "joins",
+          "type": 5
+        },
+        {
+          "id": "8:2820729401053574229",
+          "name": "question",
+          "type": 9
+        },
+        {
+          "id": "9:7160705833167968787",
+          "name": "answer",
+          "type": 9
+        },
+        {
+          "id": "10:7038427463706225184",
+          "name": "campusAnswer",
+          "type": 9
+        }
+      ],
+      "relations": []
+    },
+    {
+      "id": "3:8527885364292214999",
+      "lastPropertyId": "9:5359153933674481543",
+      "name": "JoinSnapshotSourceRecord",
+      "properties": [
+        {
+          "id": "1:757886364915934711",
+          "name": "id",
+          "type": 6,
+          "flags": 1
+        },
+        {
+          "id": "2:5951878196381694375",
+          "name": "position",
+          "type": 5
+        },
+        {
+          "id": "3:2024343939330446356",
+          "name": "entryPoint",
+          "type": 9
+        },
+        {
+          "id": "4:5259529757142009010",
+          "name": "views",
+          "type": 5
+        },
+        {
+          "id": "5:4751766932306823315",
+          "name": "joins",
+          "type": 5
+        },
+        {
+          "id": "6:2505489375059700319",
+          "name": "viewToJoinRate",
+          "type": 8
+        },
+        {
+          "id": "7:5839513303142051431",
+          "name": "shareOfJoins",
+          "type": 8
+        },
+        {
+          "id": "8:6819184252246166462",
+          "name": "campusViewToJoinRate",
+          "type": 8
+        },
+        {
+          "id": "9:5359153933674481543",
+          "name": "snapshotId",
+          "indexId": "3:4578016481435930128",
+          "type": 11,
+          "flags": 520,
+          "relationTarget": "JoinSnapshotRecord"
+        }
+      ],
+      "relations": []
     }
   ],
-  "lastEntityId": "1:5230061373864530423",
-  "lastIndexId": "1:3494615608861879091",
+  "lastEntityId": "3:8527885364292214999",
+  "lastIndexId": "3:4578016481435930128",
   "lastRelationId": "0:0",
   "lastSequenceId": "0:0",
   "modelVersion": 5,

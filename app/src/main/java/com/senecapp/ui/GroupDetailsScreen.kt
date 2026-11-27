@@ -37,7 +37,8 @@ internal fun BackLink(onBack: () -> Unit) {
 
 @Composable
 internal fun GroupDetailsScreen(home: CampusHomeViewModel, expectedGroupId: Int, onBack: () -> Unit,
-                                onChanged: () -> Unit, onEvent: (CampusEvent) -> Unit, onCreateEvent: () -> Unit, onAdminRequests: () -> Unit) {
+                                onChanged: () -> Unit, onEvent: (CampusEvent) -> Unit, onCreateEvent: () -> Unit, onAdminRequests: () -> Unit,
+                                onJoinSources: (Rso) -> Unit, offlineAdmin: Rso?) {
     val detail = home.detail?.takeIf { it.group.id == expectedGroupId }
     TelemetryScreenEffect(AnalyticsScreen.GROUP_DETAIL, meaningful = detail != null,
         identity = expectedGroupId.toString(), measureLoad = true,
@@ -73,6 +74,10 @@ internal fun GroupDetailsScreen(home: CampusHomeViewModel, expectedGroupId: Int,
         home.error?.let { InfoNotice(it, error = true) }
         if (home.detailFromCache && !home.detailLoading) InfoNotice("Showing recent details. Connect and retry to update them.")
         if ((detail == null || home.detailFromCache) && !home.detailLoading) BrandButton("Retry", home::retryGroup)
+        if (detail == null && offlineAdmin != null) {
+            SectionHeading("Leader tools")
+            ViewCard { BrandButton(JOIN_SOURCES_TITLE, { onJoinSources(offlineAdmin) }, secondary = true) }
+        }
         detail?.let {
             val group = it.group
             val color = organizationColor(group.color)
@@ -97,6 +102,9 @@ internal fun GroupDetailsScreen(home: CampusHomeViewModel, expectedGroupId: Int,
                     BrandButton("+ Create event", onCreateEvent, enabled = canAct)
                     BrandButton("Change cover photo", { prompt = "Cover photo" }, enabled = canAct, secondary = true)
                     BrandButton("Admin requests", onAdminRequests, enabled = canAct, secondary = true)
+                    if (group.reviewStatus == "approved") {
+                        BrandButton(JOIN_SOURCES_TITLE, { onJoinSources(group) }, enabled = !home.busy, secondary = true)
+                    }
                 }
             } else if (group.isMember && !group.isPendingReview && !group.isRejected) {
                 BrandButton(if (it.adminRequestStatus == "pending") "Admin request pending" else "Request admin access",
