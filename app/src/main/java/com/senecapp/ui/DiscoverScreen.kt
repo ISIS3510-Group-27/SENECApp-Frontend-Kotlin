@@ -6,6 +6,7 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
@@ -64,6 +65,9 @@ fun DiscoverScreen(
     unreadCount: Int = 0, onNotifications: () -> Unit = {},
     onFilters: () -> Unit = {}, onSeeAll: () -> Unit = {}, onCreateGroup: () -> Unit = {},
     onRefresh: () -> Unit = {},
+    onSaveLocalList: () -> Unit = {},
+    onOpenLocalList: () -> Unit = {},
+    onCloseLocalList: () -> Unit = {},
 ) {
     TelemetryScreenEffect(AnalyticsScreen.DISCOVER,
         meaningful = organizationsState.items.isNotEmpty() || (!organizationsState.loading && organizationsState.error == null),
@@ -113,6 +117,17 @@ fun DiscoverScreen(
             FeedLabel(if (organizationsState.loading) "ORGANIZATIONS"
                 else "${organizationsState.items.size} ORGANIZATIONS", palette)
             Column(Modifier.padding(horizontal = 24.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                    TextButton(onClick = onSaveLocalList,
+                        enabled = !organizationsState.loading && !organizationsState.localListBusy &&
+                            organizationsState.savingId == null && organizationsState.items.isNotEmpty()) {
+                        Text("Save list offline")
+                    }
+                    TextButton(onClick = onOpenLocalList, enabled = !organizationsState.localListBusy) {
+                        Text("Open saved list")
+                    }
+                }
+                organizationsState.localListMessage?.let { ViewText(it, color = palette.muted) }
                 organizationsState.saveError?.let { InfoNotice(it, error = true) }
                 if (organizationsState.loading) CircularProgressIndicator(Modifier.align(Alignment.CenterHorizontally)
                     .padding(24.dp).size(24.dp), color = palette.accent, strokeWidth = 2.dp)
@@ -142,6 +157,25 @@ fun DiscoverScreen(
                         color = palette.accent)
                 }
             }
+        }
+        organizationsState.localList?.let { organizations ->
+            AlertDialog(
+                onDismissRequest = onCloseLocalList,
+                title = { Text("Saved organization list") },
+                text = {
+                    LazyColumn(Modifier.heightIn(max = 380.dp),
+                        verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                        items(organizations.size, key = { organizations[it].id }) { index ->
+                            val group = organizations[index]
+                            Column {
+                                Text(group.name, fontWeight = FontWeight.Bold)
+                                Text("${group.category} · ${group.members} members")
+                            }
+                        }
+                    }
+                },
+                confirmButton = { TextButton(onClick = onCloseLocalList) { Text("Close") } },
+            )
         }
         selectedOrganization?.let { organization ->
             val live = organizationsState.items.firstOrNull { it.id == organization.id } ?: organization

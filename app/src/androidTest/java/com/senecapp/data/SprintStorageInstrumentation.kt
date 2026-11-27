@@ -17,7 +17,9 @@ class SprintStorageInstrumentation : Instrumentation() {
     override fun onStart() {
         val tests = listOf("SQLite reopen, keys and rollback" to ::sqlite,
             "ObjectBox reopen, isolation, TTL and capacity" to ::objectBox,
-            "Private itinerary and interrupted write" to ::itinerary)
+            "Private itinerary and interrupted write" to ::itinerary,
+            "Discover SQLite migration, isolation and rollback" to ::discoverSqlite,
+            "Discover private JSON round trip" to ::discoverJson)
         var failures = 0
         val report = StringBuilder()
         for ((name, test) in tests) {
@@ -104,6 +106,51 @@ class SprintStorageInstrumentation : Instrumentation() {
         check(restored.read("userA")?.single()?.title == event.title)
         restored.save("userA", listOf(event.copy(title = "Updated")))
         check(restored.read("userA")?.single()?.title == "Updated")
+    }
+
+    private val organization = Organization(7, "Club", "Tech", "tech", 30, null, false,
+        isSaved = true, imageUrl = "/media/club.png")
+
+    private suspend fun discoverSqlite() {
+        val name = "test-discover-${UUID.randomUUID()}.db"
+        val query = OrganizationsQuery("clubs")
+        val snapshot = CachedOrganizations(listOf(organization, organization.copy(id = 2)),
+            listOf("tech" to "Tech"), 2, 100L)
+        try {
+            DiscoverDatabase(targetContext, name).use { helper ->
+                val store = SqliteOrganizationsStore(helper) { uid ->
+                    if (uid == "userA") listOf(query.key() to snapshot) else emptyList()
+                }
+                check(store.read("userA", query) == snapshot)
+                check(store.read("userB", query) == null)
+                check(store.save("userB", query, snapshot))
+                helper.writableDatabase.execSQL("""
+                    CREATE TRIGGER reject_organization BEFORE INSERT ON discover_organizations
+                    WHEN NEW.organization_id = 99
+                    BEGIN SELECT RAISE(ABORT, 'test rollback'); END
+                """.trimIndent())
+                check(!store.save("userA", query, snapshot.copy(items = listOf(organization.copy(id = 99)), total = 1)))
+                check(store.read("userA", query) == snapshot)
+            }
+            DiscoverDatabase(targetContext, name).use { helper ->
+                val store = SqliteOrganizationsStore(helper) { error("Migration already completed") }
+                check(store.read("userA", query) == snapshot)
+                check(store.read("userB", query) == snapshot)
+                check(store.read("userA", query.copy(upcomingOnly = true)) == null)
+            }
+        } finally {
+            targetContext.deleteDatabase(name)
+        }
+    }
+
+    private suspend fun discoverJson() = inTestDirectory { directory ->
+        val saved = listOf(organization, organization.copy(id = 2, imageUrl = null, isSaved = false))
+        SavedOrganizationListStore(directory).save("userA", saved)
+        val reopened = SavedOrganizationListStore(directory)
+        check(reopened.read("userB") == null)
+        check(reopened.read("userA") == saved)
+        reopened.save("userA", listOf(organization))
+        check(SavedOrganizationListStore(directory).read("userA") == listOf(organization))
     }
 
     private suspend fun inTestDirectory(block: suspend (File) -> Unit) {

@@ -37,13 +37,21 @@ internal class OrganizationsRepository(
             if (userId() != uid) throw SessionChangedException()
         }
         val snapshot = try {
-            val items = search(query, ::checkSession)
-            checkSession()
-            val categories = JSONArray(api.request("/categories"))
-                .readItems { it.getString("slug") to it.getString("label") }
-            check(categories.map { it.first }.distinct().size == categories.size) { "The categories response contained duplicates. Tap Retry." }
-            checkSession()
-            CachedOrganizations(items, categories, items.size, clock())
+            coroutineScope {
+                val groups = async { search(query, ::checkSession) }
+                val categories = async {
+                    checkSession()
+                    val result = JSONArray(api.request("/categories"))
+                        .readItems { it.getString("slug") to it.getString("label") }
+                    checkSession()
+                    check(result.distinctBy { it.first }.size == result.size) {
+                        "The categories response contained duplicates. Tap Retry."
+                    }
+                    result
+                }
+                val items = groups.await()
+                CachedOrganizations(items, categories.await(), items.size, clock())
+            }
         } catch (cancelled: CancellationException) { throw cancelled
         } catch (failure: Exception) {
             if (!isOrganizationsConnectivityFailure(failure)) throw failure

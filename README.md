@@ -89,8 +89,8 @@ Loading protected data in Swagger or the app requires a real Firebase ID token; 
 | Area | Contribution |
 | --- | --- |
 | Type 1 BQ | BQ11 screen load time tracking for Discover and Organization Detail |
-| Concurrency | Discover results load and process on the IO dispatcher; previous searches are cancelled when a new query starts |
-| Local Storage | Complete Discover results are saved by user and search filters for use after closing the app |
+| Concurrency | Discover loads organizations and categories concurrently in child coroutines on the IO dispatcher; a new search cancels the previous search and its children |
+| Local Storage | Discover stores complete results by user and search filters in SQLite, migrates older snapshots, and lets users save and reopen a list from a private JSON file |
 | Eventual Connectivity | Discover shows matching saved results when the connection fails, or an error when none exist, with a Retry option; failed save actions are reverted |
 | Caching | LRU memory cache for organization detail previews, limited to 20 entries with a 60-second expiration |
 
