@@ -92,7 +92,7 @@ Loading protected data in Swagger or the app requires a real Firebase ID token; 
 | Concurrency | Discover loads organizations and categories concurrently in child coroutines on the IO dispatcher; a new search cancels the previous search and its children |
 | Local Storage | Discover stores complete results by user and search filters in SQLite, migrates older snapshots, and lets users save and reopen a list from a private JSON file |
 | Eventual Connectivity | Discover shows matching saved results when the connection fails, or an error when none exist, with a Retry option; failed save actions are reverted |
-| Caching | LRU memory cache for organization detail previews, limited to 20 entries with a 60-second expiration |
+| Caching | LRU memory cache for organization detail previews, limited to 20 entries with a 60-second expiration. A shared Coil loader caches organization images in memory and in a 64 MiB disk cache for offline reuse. |
 
 ### Daniel Vergara
 
