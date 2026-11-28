@@ -116,3 +116,20 @@ Loading protected data in Swagger or the app requires a real Firebase ID token; 
 | Concurrency | My RSOs and the Create RSO catalogue load their two requests in parallel with async on IO; interest suggestions on Dispatchers.Default with a 250 ms debounce                      |
 | Caching | LruCache (32) for interest suggestions and SparseArray for the interest catalogue                                                                                                  |
 | Type 3 BQ | BQ7 join funnel: join_form_opened with a join_attempt_id shared with the join request                                                                                              | |
+
+
+
+
+## Sprint 4
+
+### Luciana Bacci T
+
+| Area | Contribution |
+| --- | --- |
+| New view | Profile tips for admins of an approved group, opened from a chip on the group card in My RSOs |
+| Type 3 BQ | BQ4: which group profile fields are most related to students saving or joining a group, from `GET /groups/{id}/insights/profile` (built from `group_viewed` events) |
+| Local Storage (relational) | SQLite database migrated to version 2 with `profile_tips` and `profile_tip_fields` (foreign key with ON DELETE CASCADE); each snapshot is replaced in one transaction |
+| Caching | LruCache sized in rows with a 10-minute expiration, scoped by user and cleared on sign-out; Coil memory and disk cache for the group cover in Profile tips |
+| Concurrency | Profile tips for every admin group load in parallel with async inside supervisorScope on IO; sorting and the "x of y complete" summary run on Dispatchers.Default; the ViewModel launches on Main and loads on IO |
+| Eventual Connectivity | Profile tips show the saved copy with a "No connection" notice, a Retry state instead of an endless spinner, and reload automatically when the connection returns. Sprint 3 fixes: clear offline notice when saving a group, and the group detail shows the SQLite copy offline |
+| Micro-optimization | My RSOs reuses one constant DateTimeFormatter and formats each event label once per group instead of creating two SimpleDateFormat and a Regex per card on every recomposition. Before/after in `docs/performance/sprint4/my-rsos/` |
