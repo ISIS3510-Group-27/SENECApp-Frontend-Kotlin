@@ -13,6 +13,7 @@ import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.graphics.Brush
@@ -35,10 +36,28 @@ internal fun BackLink(onBack: () -> Unit) {
     }
 }
 
+// Read-only summary from the rsos table, used when the full detail cannot be loaded (no connection).
+@Composable
+private fun SavedGroupCopy(group: Rso) {
+    val color = organizationColor(group.color)
+    InfoNotice("No connection · showing the copy of this group saved on your phone. Connect and tap Retry for the full details.")
+    OrganizationImage(group.name, group.category, color,
+        Modifier.fillMaxWidth().height(140.dp).clip(RoundedCornerShape(16.dp)), group.imageUrl)
+    ViewText(group.name + if (group.verified) " ✓" else "", heading = true)
+    ViewText("${group.memberCount} members · ${group.category}", color = viewMuted)
+    StyleChip(when {
+        group.isPendingReview -> "Pending review"
+        group.isRejected -> "Not approved"
+        group.isMember -> "Member"
+        else -> "Saved"
+    }, color, color.copy(alpha = .13f))
+    ViewText(group.nextEventTitle?.let { "Next event · $it" } ?: "No upcoming events", color = viewMuted)
+}
+
 @Composable
 internal fun GroupDetailsScreen(home: CampusHomeViewModel, expectedGroupId: Int, onBack: () -> Unit,
                                 onChanged: () -> Unit, onEvent: (CampusEvent) -> Unit, onCreateEvent: () -> Unit, onAdminRequests: () -> Unit,
-                                onJoinSources: (Rso) -> Unit, offlineAdmin: Rso?) {
+                                onJoinSources: (Rso) -> Unit, offlineAdmin: Rso?, savedCopy: Rso? = null) {
     val detail = home.detail?.takeIf { it.group.id == expectedGroupId }
     TelemetryScreenEffect(AnalyticsScreen.GROUP_DETAIL, meaningful = detail != null,
         identity = expectedGroupId.toString(), measureLoad = true,
@@ -71,7 +90,10 @@ internal fun GroupDetailsScreen(home: CampusHomeViewModel, expectedGroupId: Int,
     }) {
         if (home.detailLoading) CircularProgressIndicator(color = viewAccent)
         if (home.busy) InfoNotice("Updating…")
-        home.error?.let { InfoNotice(it, error = true) }
+        // Sprint 3 feedback: if the detail cannot load but the group is in My RSOs (SQLite), show that copy.
+        val offlineCopy = savedCopy?.takeIf { detail == null && !home.detailLoading }
+        if (offlineCopy != null) SavedGroupCopy(offlineCopy)
+        else home.error?.let { InfoNotice(it, error = true) }
         if (home.detailFromCache && !home.detailLoading) InfoNotice("Showing recent details. Connect and retry to update them.")
         if ((detail == null || home.detailFromCache) && !home.detailLoading) BrandButton("Retry", home::retryGroup)
         if (detail == null && offlineAdmin != null) {

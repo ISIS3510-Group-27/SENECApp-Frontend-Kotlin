@@ -88,7 +88,8 @@ internal fun CampusHomeScreen(uid: String, profile: UserProfile, sensorContrast:
                         }
                         GroupDetailsScreen(home, id, ::back, ::changed, { event(it.id, "group_detail") },
                             { navigate("createEvent:$id") }, { navigate("admins:$id") },
-                            { group -> navigate("joinSources:$id:${Uri.encode(group.name)}") }, offlineAdmin)
+                            { group -> navigate("joinSources:$id:${Uri.encode(group.name)}") }, offlineAdmin,
+                            (myRsos.state.mine + myRsos.state.saved).firstOrNull { it.id == id })
                     }
                     "joinSources" -> {
                         val model = remember(provider) { provider[JoinSourcesViewModel::class.java] }

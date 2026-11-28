@@ -16,6 +16,7 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.launch
+import java.io.IOException
 
 data class OrganizationsUiState(
     val loading: Boolean = true,
@@ -195,8 +196,14 @@ class OrganizationsViewModel internal constructor(application: Application,
             } catch (failure: Exception) {
                 currentCoroutineContext().ensureActive()
                 if (!ownsSession() || isSessionFailure(failure)) clearSessionData(failure.message)
+                // Sprint 3 feedback: without internet the change is rolled back and the user gets a clear,
+                // specific notice instead of the technical exception text.
                 else state = state.copy(items = state.items.withSaved(id, !target), savingId = null,
-                    saveError = failure.message ?: "Could not update your saved list.")
+                    saveError = when {
+                        failure is IOException && target -> "You are offline. Connect to save this group."
+                        failure is IOException -> "You are offline. Connect to remove this group from your saved list."
+                        else -> failure.message ?: "Could not update your saved list."
+                    })
             }
         }
     }
