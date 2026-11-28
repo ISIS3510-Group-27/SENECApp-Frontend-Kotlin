@@ -209,7 +209,7 @@ class OrganizationsViewModelTest {
         advanceUntilIdle()
         assertFalse(vm.state.items.single().isSaved)
         assertNull(vm.state.savingId)
-        assertNotNull(vm.state.saveError)
+        assertEquals("You are offline. Connect to save this group.", vm.state.saveError)
     }
 
     @Test fun missingSessionCannotLoadData() = runTest(dispatcher) {

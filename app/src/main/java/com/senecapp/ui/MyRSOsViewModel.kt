@@ -8,6 +8,7 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.senecapp.analytics.TelemetryFailure
 import com.senecapp.data.MyRsosRepository
+import com.senecapp.data.ProfileTipsRepository
 import com.senecapp.data.Rso
 import com.senecapp.data.networkStatus
 import kotlinx.coroutines.CancellationException
@@ -29,6 +30,7 @@ data class MyRsosUiState(
 
 class MyRSOsViewModel(application: Application) : AndroidViewModel(application) {
     private val repository = MyRsosRepository(application)
+    private val profileTips = ProfileTipsRepository(application)
     var state by mutableStateOf(MyRsosUiState())
         private set
     private var request: Job? = null
@@ -52,6 +54,7 @@ class MyRSOsViewModel(application: Application) : AndroidViewModel(application) 
                     pendingCheckIns = result.pendingCheckIns,
                 )
                 loaded = true
+                if (!result.fromCache) prefetchProfileTips(result.mine)
             } catch (cancelled: CancellationException) {
                 throw cancelled
             } catch (failure: Exception) {
@@ -70,6 +73,19 @@ class MyRSOsViewModel(application: Application) : AndroidViewModel(application) 
     }
 
     fun refresh() = load()
+
+    private fun prefetchProfileTips(groups: List<Rso>) {
+        val ids = groups.filter { it.isProfileTipsAdmin }.map { it.id }
+        if (ids.isEmpty()) return
+        viewModelScope.launch {
+            try {
+                profileTips.loadAll(ids)
+            } catch (cancelled: CancellationException) {
+                throw cancelled
+            } catch (_: Exception) {
+            }
+        }
+    }
 
     suspend fun watchConnection() {
         networkStatus(getApplication<Application>()).collect { online ->

@@ -1,0 +1,68 @@
+[
+  {
+    "pss_kib_before": 173001,
+    "reopen": {
+      "frames": 125,
+      "rendered": 125,
+      "janky": 109,
+      "average_ms": 76.222446168,
+      "p95_ms": 116.10395759999997,
+      "max_ms": 457.339258,
+      "cpu_ms_per_cycle": 1650.0
+    },
+    "scroll": {
+      "frames": 107,
+      "rendered": 111,
+      "janky": 104,
+      "average_ms": 95.78667553271028,
+      "p95_ms": 164.2772408,
+      "max_ms": 178.441685,
+      "cpu_ms_per_cycle": 626.0
+    },
+    "pss_kib_after": 229998
+  },
+  {
+    "pss_kib_before": 177675,
+    "reopen": {
+      "frames": 134,
+      "rendered": 134,
+      "janky": 120,
+      "average_ms": 73.08085442537313,
+      "p95_ms": 110.15094774999989,
+      "max_ms": 217.892561,
+      "cpu_ms_per_cycle": 1752.0
+    },
+    "scroll": {
+      "frames": 128,
+      "rendered": 130,
+      "janky": 117,
+      "average_ms": 109.80060940625,
+      "p95_ms": 217.07403430000002,
+      "max_ms": 537.94137,
+      "cpu_ms_per_cycle": 874.0
+    },
+    "pss_kib_after": 234872
+  },
+  {
+    "pss_kib_before": 177601,
+    "reopen": {
+      "frames": 146,
+      "rendered": 146,
+      "janky": 132,
+      "average_ms": 66.05988389041096,
+      "p95_ms": 96.45214949999999,
+      "max_ms": 116.347626,
+      "cpu_ms_per_cycle": 1516.0
+    },
+    "scroll": {
+      "frames": 149,
+      "rendered": 150,
+      "janky": 138,
+      "average_ms": 94.14381245637584,
+      "p95_ms": 197.50934420000002,
+      "max_ms": 212.93797,
+      "cpu_ms_per_cycle": 798.0
+    },
+    "pss_kib_after": 216673
+  }
+]

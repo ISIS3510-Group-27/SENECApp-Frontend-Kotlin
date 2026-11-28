@@ -30,7 +30,8 @@ import java.util.TimeZone
 fun MyRSOsScreen(state: MyRsosUiState = MyRsosUiState(loading = false),
                  onLoad: () -> Unit = {}, onCreateGroup: () -> Unit = {},
                  attended: Int? = null, onOpenGroup: (Int) -> Unit = {},
-                 onWatchConnection: suspend () -> Unit = {}, onPending: () -> Unit = {}) {
+                 onWatchConnection: suspend () -> Unit = {}, onPending: () -> Unit = {},
+                 onProfileTips: (Rso) -> Unit = {}) {
     TelemetryScreenEffect(AnalyticsScreen.MY_RSOS, meaningful = !state.loading && state.error == null,
         failure = state.failure.takeIf { state.error != null })
     LaunchedEffect(Unit) { onLoad() }
@@ -59,8 +60,8 @@ fun MyRSOsScreen(state: MyRsosUiState = MyRsosUiState(loading = false),
                 TextButton(onClick = onLoad) { Text("Retry", color = viewAccent) }
             }
             else -> {
-                RsoSection("Active Memberships", state.mine, "You have not joined a group yet. Find one in Discover.", onOpenGroup)
-                RsoSection("Saved from Explore", state.saved, "Nothing saved yet. Tap Save on a group in Discover.", onOpenGroup)
+                RsoSection("Active Memberships", state.mine, "You have not joined a group yet. Find one in Discover.", onOpenGroup, onProfileTips)
+                RsoSection("Saved from Explore", state.saved, "Nothing saved yet. Tap Save on a group in Discover.", onOpenGroup, onProfileTips)
             }
         }
     }
@@ -76,14 +77,15 @@ private fun OfflineNotice(state: MyRsosUiState) {
 }
 
 @Composable
-private fun RsoSection(title: String, groups: List<Rso>, empty: String, onOpen: (Int) -> Unit) {
+private fun RsoSection(title: String, groups: List<Rso>, empty: String, onOpen: (Int) -> Unit,
+                       onProfileTips: (Rso) -> Unit) {
     SectionHeading(title)
     if (groups.isEmpty()) ViewText(empty, color = viewMuted)
-    else groups.forEach { RsoCard(it) { onOpen(it.id) } }
+    else groups.forEach { RsoCard(it, { onProfileTips(it) }) { onOpen(it.id) } }
 }
 
 @Composable
-private fun RsoCard(group: Rso, onOpen: () -> Unit) {
+private fun RsoCard(group: Rso, onProfileTips: () -> Unit, onOpen: () -> Unit) {
     val color = organizationColor(group.color)
     Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(viewCard)
         .border(1.dp, viewBorder, RoundedCornerShape(16.dp)).clickable(onClick = onOpen)) {
@@ -118,6 +120,11 @@ private fun RsoCard(group: Rso, onOpen: () -> Unit) {
             if (group.nextEventTitle == null) ViewText("No upcoming events", color = viewMuted)
             if (group.isPendingReview) ViewText("An administrator still has to approve this group.", color = viewMuted)
             group.rejectionReason?.let { ViewText("Reason: $it", color = viewMuted) }
+            if (group.isProfileTipsAdmin) {
+                Box(Modifier.clip(RoundedCornerShape(12.dp)).clickable(onClick = onProfileTips)) {
+                    StyleChip("Profile tips", viewBackground, viewAccent)
+                }
+            }
         }
     }
 }
@@ -133,6 +140,8 @@ private fun eventTime(value: String): String = runCatching {
     val date = requireNotNull(input.parse(normalized))
     SimpleDateFormat("MMM d · h:mm a", Locale.US).apply { timeZone = TimeZone.getTimeZone("America/Bogota") }.format(date)
 }.getOrDefault(value)
+
+internal val Rso.isProfileTipsAdmin: Boolean get() = role == "admin" && reviewStatus == "approved"
 
 @Preview(showBackground = true, widthDp = 393, heightDp = 852)
 @Composable
