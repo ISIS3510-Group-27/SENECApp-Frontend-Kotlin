@@ -1,0 +1,16 @@
+{
+  "reopen": {
+    "average_ms": 73.08085442537313,
+    "p95_ms": 110.15094774999989,
+    "max_ms": 217.892561,
+    "cpu_ms_per_cycle": 1650.0
+  },
+  "scroll": {
+    "average_ms": 95.78667553271028,
+    "p95_ms": 197.50934420000002,
+    "max_ms": 212.93797,
+    "cpu_ms_per_cycle": 798.0
+  },
+  "pss_kib_after": 229998,
+  "note": "Median of the runs. Emulator: compare only before vs after on the same AVD."
+}
